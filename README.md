@@ -41,6 +41,8 @@ supabase/
   migrations/0001_init_schema.sql Tabellen, enums, triggers
   migrations/0002_rls_policies.sql Row Level Security + publieke prikbord-view
   migrations/0003_storage.sql     Storage-bucket voor bonnetje-foto's
+  migrations/0004_bonnetje_status_enum.sql  Nieuwe status 'in_afwachting_controle'
+  migrations/0005_anomaly_detection_en_facturatie.sql  flag_reden, herziene triggers, facturen-tabel
   seed.sql                        Demodata voor lokale ontwikkeling
 ```
 
@@ -55,20 +57,59 @@ Volledig relationeel, geen geneste/array/JSON-lijstkolommen — elke
 | `teams` | club_id, team_naam, totaal_punten, totaal_opgehaald_euro |
 | `donateurs` | naam, email (uniek), adres, postcode, telefoonnummer |
 | `ophaalverzoeken` | donateur_id, club_id, geclaimd_door_team_id, status, aantal_geschat |
-| `bonnetjes` | ophaalverzoek_id, team_id, foto_url, bedrag_euro, punten, status |
+| `bonnetjes` | ophaalverzoek_id, team_id, foto_url, bedrag_euro, punten, status, flag_reden |
 | `club_admins` | club_id, user_id (Supabase Auth), rol |
 | `team_members` | team_id, user_id (Supabase Auth), naam |
+| `facturen` | club_id, periode_start, periode_eind, totaal_goedgekeurd_bedrag, platform_fee_bedrag, status |
 
 **Triggers** houden de scores automatisch consistent:
-- Bij het inleveren van een bonnetje worden punten/euro's **direct** bij
-  het team opgeteld (instant gratification) en gaat het ophaalverzoek
-  naar `ingeleverd`.
+- Bij het inleveren van een bonnetje bepaalt de anomaly-detection-check
+  (zie hieronder) of het meteen `goedgekeurd` wordt — dan gaan de
+  punten/euro's **direct** naar het team (instant gratification) en het
+  ophaalverzoek naar `voltooid` — of dat het op `in_afwachting_controle`
+  blijft staan totdat de penningmeester het beoordeelt.
 - `clubs.opgehaald_bedrag` is altijd de som van alle teamtotalen — het
   "virtuele" saldo dat de penningmeester ziet.
+- Keurt de penningmeester een bonnetje later alsnog goed (of overschrijft
+  het bedrag), dan worden de punten/euro's op dát moment bijgeschreven en
+  gaat het ophaalverzoek naar `voltooid`.
 - Keurt de penningmeester een bonnetje af nadat het al meetelde, dan
   wordt het bedrag automatisch weer van het team afgetrokken.
-- Keurt de penningmeester goed (fysiek geld ontvangen), dan gaat het
-  ophaalverzoek naar `voltooid`.
+
+### Anomaly Detection & verificatie-workflow (Penningmeester Dashboard)
+
+Bij elke upload (`POST /api/bonnetjes`) wordt het gesimuleerde OCR-bedrag
+getoetst aan twee regels (`lib/utils.ts#beoordeelAnomalie`):
+
+1. **Bedrag** ≥ €30,00 (`ANOMALIE_BEDRAG_DREMPEL_EURO`) → verdacht.
+2. **Patroon**: dit zou de 5e-of-latere scan van hetzelfde team zijn
+   binnen 10 minuten (`ANOMALIE_SCANS_DREMPEL` / `_VENSTER_MINUTEN`) → verdacht.
+
+Is er geen van beide van toepassing, dan wordt het bonnetje direct
+`goedgekeurd` en verschijnt de score meteen op het leaderboard. Anders
+krijgt het `status = 'in_afwachting_controle'` plus een leesbare
+`flag_reden`, en verschijnt het in de verificatielijst van het
+penningmeester-dashboard (`components/admin/VerificatieLijst.tsx`) met
+drie acties:
+- **Goedkeuren** — bedrag klopt, punten alsnog toekennen.
+- **Afkeuren** — telt nooit mee.
+- **Bedrag overschrijven** — de penningmeester typt het juiste bedrag
+  (op basis van de foto) in; dat gecorrigeerde bedrag wordt direct
+  goedgekeurd en de punten herberekend.
+
+### Het 5%-verdienmodel: platform-facturatie
+
+`components/admin/PlatformFactuur.tsx` + `POST /api/clubs/[slug]/facturen`
+berekenen een conceptfactuur van 5% (`PLATFORM_FEE_PERCENTAGE` in `lib/utils.ts`) over
+uitsluitend de bonnetjes met status `goedgekeurd` sinds het einde van de
+vorige factuurperiode (of sinds het ontstaan van de club, bij de eerste
+factuur) — zo wordt nooit twee keer over hetzelfde bedrag gefactureerd.
+Afgekeurde scans en bonnetjes die nog `in_afwachting_controle` staan
+tellen dus nooit mee. De UI communiceert expliciet dat deze facturatie
+uitsluitend is gebaseerd op de in-app goedgekeurde scans, **onafhankelijk**
+van het moment waarop teamleden het bedrag fysiek naar de clubkas
+overmaken (dat blijft de aparte, sociale "Campagne afronden"-stap
+richting de teams via WhatsApp/Tikkie).
 
 Een donateur blijft **1 record**: het ophaalformulier doet een `upsert`
 op e-mailadres, dus bij een volgende actie (ook bij een andere club)
@@ -132,3 +173,11 @@ SV De Meteoor.
   Realtime, omdat de onderliggende tabel bewust geen anon-leesrechten
   heeft (RLS). Het leaderboard gebruikt wél echte Realtime, want
   `teams` is public-readable.
+- "Campagne afronden" (WhatsApp/Tikkie-herinnering richting teams) is
+  een eenmalige, niet-periodieke actie gebaseerd op het cumulatieve
+  `teams.totaal_opgehaald_euro`; er is geen aparte status die bijhoudt
+  of een team het bedrag al fysiek heeft afgedragen aan de clubkas —
+  dat blijft sociale controle, zoals gevraagd.
+- De 5%-platformfactuur is een intern gegenereerde conceptfactuur
+  (status `concept`/`verzonden`/`betaald` in de `facturen`-tabel); er
+  is geen koppeling met een echte facturatie-/betaalprovider.

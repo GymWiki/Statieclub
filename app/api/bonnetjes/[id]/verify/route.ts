@@ -1,20 +1,37 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createClient, createServiceRoleClient } from "@/lib/supabase/server";
+import { berekenPunten } from "@/lib/utils";
+
+type Actie = "goedkeuren" | "afkeuren" | "overschrijven";
 
 /**
  * PATCH /api/bonnetjes/[id]/verify
- * Enige route die echte financiële status wijzigt (fysiek geld
- * ontvangen). Daarom wél gebonden aan een ingelogde gebruiker die
- * penningmeester/bestuurslid is van de club waar dit bonnetje bij
- * hoort — geverifieerd via de sessie-cookies (anon-key + RLS op
- * club_admins), niet enkel via de open service-role.
+ * Verificatie-workflow voor de penningmeester op een geflagd bonnetje
+ * (status 'in_afwachting_controle'):
+ * - "goedkeuren": bevestigt het gescande bedrag, punten gaan alsnog
+ *   naar het team (via de `apply_bonnetje_status_change`-trigger).
+ * - "afkeuren": het bonnetje telt nooit mee.
+ * - "overschrijven": de penningmeester corrigeert het bedrag op basis
+ *   van de foto; het gecorrigeerde bedrag wordt direct goedgekeurd en
+ *   de bijbehorende punten toegekend.
+ *
+ * Alleen bereikbaar voor een ingelogde gebruiker die penningmeester/
+ * bestuurslid is van de club waar dit bonnetje bij hoort — geverifieerd
+ * via de sessie-cookies (anon-key + RLS op club_admins), niet enkel via
+ * de open service-role.
  */
 export async function PATCH(request: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   const { id } = await params;
-  const { status } = await request.json();
+  const { actie, nieuwBedrag } = (await request.json()) as { actie: Actie; nieuwBedrag?: number };
 
-  if (status !== "goedgekeurd" && status !== "afgekeurd") {
-    return NextResponse.json({ error: "status moet 'goedgekeurd' of 'afgekeurd' zijn." }, { status: 400 });
+  if (actie !== "goedkeuren" && actie !== "afkeuren" && actie !== "overschrijven") {
+    return NextResponse.json(
+      { error: "actie moet 'goedkeuren', 'afkeuren' of 'overschrijven' zijn." },
+      { status: 400 }
+    );
+  }
+  if (actie === "overschrijven" && (!Number.isFinite(nieuwBedrag) || (nieuwBedrag as number) <= 0)) {
+    return NextResponse.json({ error: "nieuwBedrag moet een positief getal zijn." }, { status: 400 });
   }
 
   const authedSupabase = await createClient();
@@ -50,16 +67,27 @@ export async function PATCH(request: NextRequest, { params }: { params: Promise<
   if (!admin) {
     return NextResponse.json({ error: "Geen toegang tot deze club." }, { status: 403 });
   }
-  if (bonnetje.status !== "ingeleverd") {
+  if (bonnetje.status !== "in_afwachting_controle") {
     return NextResponse.json(
       { error: `Bonnetje heeft al status '${bonnetje.status}'.` },
       { status: 409 }
     );
   }
 
+  const updateData: Record<string, unknown> = { geverifieerd_door: user.email };
+  if (actie === "goedkeuren") {
+    updateData.status = "goedgekeurd";
+  } else if (actie === "afkeuren") {
+    updateData.status = "afgekeurd";
+  } else {
+    updateData.status = "goedgekeurd";
+    updateData.bedrag_euro = nieuwBedrag;
+    updateData.punten = berekenPunten(nieuwBedrag as number);
+  }
+
   const { data: updated, error: updateError } = await service
     .from("bonnetjes")
-    .update({ status, geverifieerd_door: user.email })
+    .update(updateData)
     .eq("id", id)
     .select()
     .single();

@@ -1,15 +1,23 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createServiceRoleClient } from "@/lib/supabase/server";
-import { berekenPunten, simuleerOcrBedrag } from "@/lib/utils";
+import {
+  ANOMALIE_SCANS_VENSTER_MINUTEN,
+  beoordeelAnomalie,
+  berekenPunten,
+  simuleerOcrBedrag,
+} from "@/lib/utils";
 
 /**
  * POST /api/bonnetjes
  * Bonnetjes Upload Simulator: de foto is al naar Supabase Storage
  * geüpload door de client (publieke `bonnetjes`-bucket); hier
- * "lezen" we het totaalbedrag via simuleerOcrBedrag (géén echte OCR)
- * en schrijven direct punten/euro's toe aan het team. De database-
- * trigger `trg_bonnetje_insert` zet vervolgens automatisch de status
- * van het ophaalverzoek op 'ingeleverd'.
+ * "lezen" we het totaalbedrag via simuleerOcrBedrag (géén echte OCR).
+ *
+ * Anomaly detection: bedrag >= drempel of >=5 scans van hetzelfde team
+ * binnen 10 minuten -> status 'in_afwachting_controle' (punten wachten
+ * op de penningmeester). Anders: direct 'goedgekeurd' — de database-
+ * trigger `trg_bonnetje_insert` schrijft de punten dan meteen bij op
+ * het team (instant gratification op het leaderboard).
  */
 export async function POST(request: NextRequest) {
   const { ophaalverzoek_id, team_id, foto_url, bestandsnaam, bestandsgrootte } = await request.json();
@@ -45,6 +53,16 @@ export async function POST(request: NextRequest) {
   const bedragEuro = simuleerOcrBedrag(bestandsnaam ?? foto_url, bestandsgrootte ?? 0);
   const punten = berekenPunten(bedragEuro);
 
+  const vensterStart = new Date(Date.now() - ANOMALIE_SCANS_VENSTER_MINUTEN * 60 * 1000).toISOString();
+  const { count: recenteScansAantal } = await supabase
+    .from("bonnetjes")
+    .select("id", { count: "exact", head: true })
+    .eq("team_id", team_id)
+    .gte("created_at", vensterStart);
+
+  // +1: deze scan telt zelf ook mee voor het patroon ("dit zou de Nde scan zijn").
+  const anomalie = beoordeelAnomalie(bedragEuro, (recenteScansAantal ?? 0) + 1);
+
   const { data: bonnetje, error: bonnetjeError } = await supabase
     .from("bonnetjes")
     .insert({
@@ -53,6 +71,8 @@ export async function POST(request: NextRequest) {
       foto_url,
       bedrag_euro: bedragEuro,
       punten,
+      status: anomalie.verdacht ? "in_afwachting_controle" : "goedgekeurd",
+      flag_reden: anomalie.verdacht ? anomalie.redenen.join("; ") : null,
     })
     .select()
     .single();

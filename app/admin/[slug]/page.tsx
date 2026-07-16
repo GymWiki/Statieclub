@@ -38,8 +38,8 @@ export default async function AdminClubPage({ params }: { params: Promise<{ slug
 
   const { data: bonnetjesRaw } = await service
     .from("bonnetjes")
-    .select("id, foto_url, bedrag_euro, punten, created_at, teams!inner(team_naam, club_id)")
-    .eq("status", "ingeleverd")
+    .select("id, foto_url, bedrag_euro, punten, flag_reden, created_at, teams!inner(team_naam, club_id)")
+    .eq("status", "in_afwachting_controle")
     .eq("teams.club_id", club.id)
     .order("created_at", { ascending: true });
 
@@ -51,15 +51,39 @@ export default async function AdminClubPage({ params }: { params: Promise<{ slug
     foto_url: b.foto_url as string,
     bedrag_euro: b.bedrag_euro as number,
     punten: b.punten as number,
+    flag_reden: (b.flag_reden as string | null) ?? null,
     created_at: b.created_at as string,
     team_naam: b.teams.team_naam as string,
   }));
+
+  const { data: facturen } = await service
+    .from("facturen")
+    .select("*")
+    .eq("club_id", club.id)
+    .order("periode_eind", { ascending: false });
+
+  const laatsteFactuur = facturen?.[0];
+  const periodeStart = laatsteFactuur?.periode_eind ?? club.created_at;
+
+  const { data: openBonnetjes } = await service
+    .from("bonnetjes")
+    .select("bedrag_euro, teams!inner(club_id)")
+    .eq("status", "goedgekeurd")
+    .eq("teams.club_id", club.id)
+    .gt("geverifieerd_op", periodeStart);
+
+  const huidigePeriodeTotaal = ((openBonnetjes ?? []) as any[]).reduce(
+    (som, b) => som + Number(b.bedrag_euro),
+    0
+  );
 
   return (
     <PenningmeesterPaneel
       club={club}
       teams={(teams as Team[]) ?? []}
       initialBonnetjes={teVerifierenBonnetjes}
+      initialFacturen={facturen ?? []}
+      huidigePeriode={{ periodeStart, totaal: huidigePeriodeTotaal }}
     />
   );
 }

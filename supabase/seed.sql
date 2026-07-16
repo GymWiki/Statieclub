@@ -20,7 +20,8 @@ insert into donateurs (id, naam, email, adres, postcode, telefoonnummer)
 values
   ('d1111111-1111-1111-1111-111111111111', 'Fam. Jansen', 'jansen@example.com', 'Meteorstraat 12', '7511 AB', '0612345678'),
   ('d2222222-2222-2222-2222-222222222222', 'Fam. de Vries', 'devries@example.com', 'Groenoordlaan 4', '7513 CD', '0623456789'),
-  ('d3333333-3333-3333-3333-333333333333', 'Fam. Bakker', 'bakker@example.com', 'Bataafseweg 88', '7521 EF', '0634567890');
+  ('d3333333-3333-3333-3333-333333333333', 'Fam. Bakker', 'bakker@example.com', 'Bataafseweg 88', '7521 EF', '0634567890'),
+  ('d4444444-4444-4444-4444-444444444444', 'Fam. Smit', 'smit@example.com', 'Meteorstraat 40', '7511 AB', '0645678901');
 
 insert into ophaalverzoeken (id, donateur_id, club_id, geclaimd_door_team_id, status, aantal_geschat, opmerking)
 values
@@ -28,11 +29,22 @@ values
   ('e1111111-1111-1111-1111-111111111112', 'd2222222-2222-2222-2222-222222222222', '22222222-2222-2222-2222-222222222222', null, 'open', 40, null),
   ('e1111111-1111-1111-1111-111111111113', 'd3333333-3333-3333-3333-333333333333', '33333333-3333-3333-3333-333333333333', 'a3333333-3333-3333-3333-333333333331', 'geclaimd', 15, 'Graag na 17:00 langskomen');
 
--- Voorbeeld van een al verwerkt bonnetje (JO11-1 heeft al eens ingeleverd)
+-- Voorbeeld van een al verwerkt bonnetje (JO11-1, bedrag onder de
+-- anomaly-drempel -> automatisch goedgekeurd, punten direct toegekend)
 insert into ophaalverzoeken (id, donateur_id, club_id, geclaimd_door_team_id, status, aantal_geschat)
 values
   ('e1111111-1111-1111-1111-111111111114', 'd1111111-1111-1111-1111-111111111111', '11111111-1111-1111-1111-111111111111', 'a1111111-1111-1111-1111-111111111111', 'geclaimd', 30);
 
 insert into bonnetjes (ophaalverzoek_id, team_id, foto_url, bedrag_euro, punten, status)
 values
-  ('e1111111-1111-1111-1111-111111111114', 'a1111111-1111-1111-1111-111111111111', 'https://placehold.co/400x600?text=Bonnetje', 7.50, 75, 'ingeleverd');
+  ('e1111111-1111-1111-1111-111111111114', 'a1111111-1111-1111-1111-111111111111', 'https://placehold.co/400x600?text=Bonnetje', 7.50, 75, 'goedgekeurd');
+
+-- Voorbeeld van een geflagd bonnetje (Heren 3, bedrag >= €30 ->
+-- wacht op controle door de penningmeester, telt nog niet mee)
+insert into ophaalverzoeken (id, donateur_id, club_id, geclaimd_door_team_id, status, aantal_geschat)
+values
+  ('e1111111-1111-1111-1111-111111111115', 'd4444444-4444-4444-4444-444444444444', '11111111-1111-1111-1111-111111111111', 'a1111111-1111-1111-1111-111111111113', 'geclaimd', 80);
+
+insert into bonnetjes (ophaalverzoek_id, team_id, foto_url, bedrag_euro, punten, status, flag_reden)
+values
+  ('e1111111-1111-1111-1111-111111111115', 'a1111111-1111-1111-1111-111111111113', 'https://placehold.co/400x600?text=Bonnetje', 34.20, 342, 'in_afwachting_controle', 'Hoog bedrag (≥ €30,00)');

@@ -1,0 +1,13 @@
+-- Statieclub — Anomaly Detection: nieuwe tussenstatus voor bonnetjes
+--
+-- 'in_afwachting_controle' vervangt vanaf nu de rol die 'ingeleverd'
+-- eerder had als "nog niet definitief"-status van een bonnetje. De
+-- oude waarde 'ingeleverd' blijft in het enum-type staan (Postgres kan
+-- enum-waarden niet zomaar verwijderen) maar wordt door de applicatie
+-- niet meer geproduceerd.
+--
+-- Dit staat in een eigen migratiebestand omdat een nieuwe enum-waarde
+-- pas na commit van déze transactie in dezelfde sessie gebruikt mag
+-- worden — vandaar dat de triggers/functies die 'in_afwachting_controle'
+-- gebruiken in het volgende migratiebestand staan.
+alter type bonnetje_status add value if not exists 'in_afwachting_controle';

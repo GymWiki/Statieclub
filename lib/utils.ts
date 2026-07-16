@@ -12,6 +12,47 @@ export function berekenPunten(bedragEuro: number): number {
   return Math.round(bedragEuro * PUNTEN_PER_EURO);
 }
 
+// ─────────────────────────────────────────────────────────────
+// Anomaly detection (Penningmeester Dashboard)
+// ─────────────────────────────────────────────────────────────
+
+/** Bedragen vanaf deze drempel worden nooit automatisch goedgekeurd. */
+export const ANOMALIE_BEDRAG_DREMPEL_EURO = 30;
+
+/** Meer dan dit aantal scans van hetzelfde team binnen het tijdsvenster is verdacht. */
+export const ANOMALIE_SCANS_DREMPEL = 5;
+export const ANOMALIE_SCANS_VENSTER_MINUTEN = 10;
+
+export interface AnomalieCheck {
+  verdacht: boolean;
+  redenen: string[];
+}
+
+/** Combineert de bedrag- en patroon-check tot één flag_reden (of null). */
+export function beoordeelAnomalie(bedragEuro: number, recenteScansAantal: number): AnomalieCheck {
+  const redenen: string[] = [];
+
+  if (bedragEuro >= ANOMALIE_BEDRAG_DREMPEL_EURO) {
+    redenen.push(`Hoog bedrag (≥ ${formatEuro(ANOMALIE_BEDRAG_DREMPEL_EURO)})`);
+  }
+  if (recenteScansAantal >= ANOMALIE_SCANS_DREMPEL) {
+    redenen.push(
+      `${recenteScansAantal} scans van dit team binnen ${ANOMALIE_SCANS_VENSTER_MINUTEN} minuten`
+    );
+  }
+
+  return { verdacht: redenen.length > 0, redenen };
+}
+
+// ─────────────────────────────────────────────────────────────
+// Platform-facturatie (5% B2B software-fee)
+// ─────────────────────────────────────────────────────────────
+export const PLATFORM_FEE_PERCENTAGE = 5;
+
+export function berekenPlatformFee(totaalGoedgekeurdBedrag: number): number {
+  return Math.round(totaalGoedgekeurdBedrag * (PLATFORM_FEE_PERCENTAGE / 100) * 100) / 100;
+}
+
 export function formatEuro(bedrag: number): string {
   return new Intl.NumberFormat("nl-NL", {
     style: "currency",
@@ -39,8 +80,12 @@ export function statusLabel(status: string): string {
     geclaimd: "Geclaimd",
     ingeleverd: "Ingeleverd",
     voltooid: "Voltooid",
+    in_afwachting_controle: "In afwachting van controle",
     goedgekeurd: "Goedgekeurd",
     afgekeurd: "Afgekeurd",
+    concept: "Concept",
+    verzonden: "Verzonden",
+    betaald: "Betaald",
   };
   return labels[status] ?? status;
 }
@@ -51,8 +96,12 @@ export function statusKleur(status: string): string {
     geclaimd: "bg-status-claimed/10 text-status-claimed border-status-claimed/30",
     ingeleverd: "bg-status-submitted/10 text-status-submitted border-status-submitted/30",
     voltooid: "bg-status-done/10 text-status-done border-status-done/30",
+    in_afwachting_controle: "bg-amber-100 text-amber-700 border-amber-300",
     goedgekeurd: "bg-status-open/10 text-status-open border-status-open/30",
     afgekeurd: "bg-red-100 text-red-700 border-red-300",
+    concept: "bg-gray-100 text-gray-700 border-gray-300",
+    verzonden: "bg-status-claimed/10 text-status-claimed border-status-claimed/30",
+    betaald: "bg-status-open/10 text-status-open border-status-open/30",
   };
   return kleuren[status] ?? "bg-gray-100 text-gray-700 border-gray-300";
 }
@@ -71,7 +120,7 @@ export function simuleerOcrBedrag(bestandsnaam: string, bestandsgrootte: number)
     hash = (hash * 31 + seed.charCodeAt(i)) >>> 0;
   }
   const min = 1.5;
-  const max = 45;
-  const bedrag = min + (hash % 4350) / 100;
+  const max = 60;
+  const bedrag = min + (hash % 5850) / 100;
   return Math.round(Math.min(bedrag, max) * 100) / 100;
 }

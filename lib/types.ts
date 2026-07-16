@@ -4,8 +4,15 @@
 // aparte, benoemde velden gemodelleerd in de *Met... varianten.
 
 export type OphaalverzoekStatus = "open" | "geclaimd" | "ingeleverd" | "voltooid";
-export type BonnetjeStatus = "ingeleverd" | "goedgekeurd" | "afgekeurd";
+/**
+ * De applicatie produceert vanaf de anomaly-detection-uitbreiding
+ * alleen nog 'in_afwachting_controle' | 'goedgekeurd' | 'afgekeurd'.
+ * De DB-enum bevat om historische/compatibiliteitsredenen ook nog
+ * 'ingeleverd', maar dat wordt door de app niet meer geschreven.
+ */
+export type BonnetjeStatus = "in_afwachting_controle" | "goedgekeurd" | "afgekeurd";
 export type ClubRol = "penningmeester" | "bestuurslid";
+export type FactuurStatus = "concept" | "verzonden" | "betaald";
 
 export interface Club {
   id: string;
@@ -84,9 +91,24 @@ export interface Bonnetje {
   bedrag_euro: number;
   punten: number;
   status: BonnetjeStatus;
+  flag_reden: string | null;
   geverifieerd_door: string | null;
   geverifieerd_op: string | null;
   created_at: string;
+}
+
+/** Platform-factuur: 5% software-fee over goedgekeurde bonnetjes in een periode. */
+export interface Factuur {
+  id: string;
+  club_id: string;
+  periode_start: string;
+  periode_eind: string;
+  totaal_goedgekeurd_bedrag: number;
+  platform_fee_percentage: number;
+  platform_fee_bedrag: number;
+  status: FactuurStatus;
+  aangemaakt_door: string | null;
+  aangemaakt_op: string;
 }
 
 export interface ClubAdmin {
