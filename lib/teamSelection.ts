@@ -26,3 +26,20 @@ export function wisselTeam(clubSlug: string) {
   if (typeof window === "undefined") return;
   window.localStorage.removeItem(storageKey(clubSlug));
 }
+
+/**
+ * Spelernaam wordt los van de teamkeuze bewaard (1x per apparaat, over
+ * alle clubs heen) — nodig om het WhatsApp-bericht bij het claimen
+ * automatisch in te vullen ("Ik ben [Naam] van team [Team]...").
+ */
+const SPELER_NAAM_KEY = "statieclub_speler_naam";
+
+export function laadSpelerNaam(): string {
+  if (typeof window === "undefined") return "";
+  return window.localStorage.getItem(SPELER_NAAM_KEY) ?? "";
+}
+
+export function bewaarSpelerNaam(naam: string) {
+  if (typeof window === "undefined") return;
+  window.localStorage.setItem(SPELER_NAAM_KEY, naam);
+}

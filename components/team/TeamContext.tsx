@@ -1,13 +1,14 @@
 "use client";
 
 import { createContext, useContext, useEffect, useState } from "react";
-import { laadGekozenTeamId, kiesTeam, wisselTeam } from "@/lib/teamSelection";
+import { laadGekozenTeamId, kiesTeam, wisselTeam, laadSpelerNaam, bewaarSpelerNaam } from "@/lib/teamSelection";
 import type { Team } from "@/lib/types";
 
 interface TeamContextValue {
   teams: Team[];
   gekozenTeam: Team | null;
-  kiesTeam: (teamId: string) => void;
+  spelerNaam: string;
+  kiesTeam: (teamId: string, naam: string) => void;
   wisselTeam: () => void;
 }
 
@@ -23,10 +24,12 @@ export function TeamProvider({
   children: React.ReactNode;
 }) {
   const [gekozenTeamId, setGekozenTeamId] = useState<string | null>(null);
+  const [spelerNaam, setSpelerNaam] = useState("");
   const [geladen, setGeladen] = useState(false);
 
   useEffect(() => {
     setGekozenTeamId(laadGekozenTeamId(clubSlug));
+    setSpelerNaam(laadSpelerNaam());
     setGeladen(true);
   }, [clubSlug]);
 
@@ -35,9 +38,12 @@ export function TeamProvider({
   const value: TeamContextValue = {
     teams,
     gekozenTeam,
-    kiesTeam: (teamId: string) => {
+    spelerNaam,
+    kiesTeam: (teamId: string, naam: string) => {
       kiesTeam(clubSlug, teamId);
+      bewaarSpelerNaam(naam);
       setGekozenTeamId(teamId);
+      setSpelerNaam(naam);
     },
     wisselTeam: () => {
       wisselTeam(clubSlug);

@@ -74,6 +74,39 @@ export function postcodeCijfers(postcode: string): string {
   return postcode.replace(/\s/g, "").slice(0, 4);
 }
 
+// ─────────────────────────────────────────────────────────────
+// WhatsApp-integratie (claimknop bij het Ophaal Prikbord)
+// ─────────────────────────────────────────────────────────────
+
+/**
+ * Normaliseert een NL-telefoonnummer naar het cijfers-only formaat dat
+ * wa.me verwacht (landcode 31, geen 0/+/spaties/streepjes). Geeft null
+ * terug als het resultaat geen geldig mobiel nummer lijkt.
+ */
+export function naarWhatsappNummer(telefoonnummer: string | null | undefined): string | null {
+  if (!telefoonnummer) return null;
+  let cijfers = telefoonnummer.replace(/[^\d]/g, "");
+
+  if (cijfers.startsWith("0031")) cijfers = cijfers.slice(2);
+  else if (cijfers.startsWith("31")) {
+    // al in internationaal formaat
+  } else if (cijfers.startsWith("0")) cijfers = "31" + cijfers.slice(1);
+
+  return cijfers.length >= 10 ? cijfers : null;
+}
+
+/**
+ * Bouwt een wa.me-link met vooraf ingevuld bericht. Is er een geldig
+ * telefoonnummer, dan opent de link direct een chat met die donateur;
+ * anders (nummer onbekend/ongeldig) valt hij terug op een algemene
+ * WhatsApp-share zonder vaste ontvanger.
+ */
+export function bouwWhatsappUrl(telefoonnummer: string | null | undefined, tekst: string): string {
+  const nummer = naarWhatsappNummer(telefoonnummer);
+  const basis = nummer ? `https://wa.me/${nummer}` : "https://wa.me/";
+  return `${basis}?text=${encodeURIComponent(tekst)}`;
+}
+
 export function statusLabel(status: string): string {
   const labels: Record<string, string> = {
     open: "Open",

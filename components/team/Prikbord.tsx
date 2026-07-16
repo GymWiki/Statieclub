@@ -1,13 +1,14 @@
 "use client";
 
 import { useCallback, useEffect, useState } from "react";
-import { MapPin, Package, Loader2, Camera } from "lucide-react";
+import { MapPin, Package, Loader2, Camera, MessageCircleMore } from "lucide-react";
 import Link from "next/link";
 import { createClient } from "@/lib/supabase/client";
 import { Card } from "@/components/ui/Card";
 import { Button } from "@/components/ui/Button";
 import { StatusBadge } from "@/components/ui/Badge";
 import { useTeam } from "@/components/team/TeamContext";
+import { bouwWhatsappUrl } from "@/lib/utils";
 import type { OphaalverzoekPrikbord } from "@/lib/types";
 
 interface GeclaimdAdres {
@@ -18,8 +19,8 @@ interface GeclaimdAdres {
   donateur_telefoonnummer: string | null;
 }
 
-export function Prikbord({ clubId, clubSlug }: { clubId: string; clubSlug: string }) {
-  const { gekozenTeam } = useTeam();
+export function Prikbord({ clubId, clubSlug, clubNaam }: { clubId: string; clubSlug: string; clubNaam: string }) {
+  const { gekozenTeam, spelerNaam } = useTeam();
   const [verzoeken, setVerzoeken] = useState<OphaalverzoekPrikbord[]>([]);
   const [geclaimd, setGeclaimd] = useState<Record<string, GeclaimdAdres>>({});
   const [ladend, setLadend] = useState(true);
@@ -42,6 +43,38 @@ export function Prikbord({ clubId, clubSlug }: { clubId: string; clubSlug: strin
     const interval = setInterval(laadVerzoeken, 5000);
     return () => clearInterval(interval);
   }, [laadVerzoeken]);
+
+  // Na een refresh (of op een ander apparaat) staat een eerder door ons
+  // geclaimd verzoek nog wel op "geclaimd", maar het adres/telefoonnummer
+  // zit niet meer in de lokale state — haal dat dan alsnog op, want de
+  // WhatsApp-knop en het adres hebben het nodig.
+  useEffect(() => {
+    if (!gekozenTeam) return;
+
+    const ontbrekend = verzoeken.filter(
+      (v) => v.status === "geclaimd" && v.geclaimd_door_team_id === gekozenTeam.id && !geclaimd[v.id]
+    );
+    if (ontbrekend.length === 0) return;
+
+    (async () => {
+      for (const v of ontbrekend) {
+        const res = await fetch(`/api/ophaalverzoeken/${v.id}`);
+        if (!res.ok) continue;
+        const json = await res.json();
+        const o = json.ophaalverzoek;
+        setGeclaimd((prev) => ({
+          ...prev,
+          [v.id]: {
+            id: v.id,
+            donateur_naam: o.donateurs.naam,
+            donateur_adres: o.donateurs.adres,
+            donateur_postcode: o.donateurs.postcode,
+            donateur_telefoonnummer: o.donateurs.telefoonnummer,
+          },
+        }));
+      }
+    })();
+  }, [verzoeken, gekozenTeam, geclaimd]);
 
   async function claim(id: string) {
     if (!gekozenTeam) return;
@@ -102,6 +135,11 @@ export function Prikbord({ clubId, clubSlug }: { clubId: string; clubSlug: strin
         const jouwClaim = v.geclaimd_door_team_id === gekozenTeam?.id;
         const adres = geclaimd[v.id];
 
+        const whatsappTekst = gekozenTeam
+          ? `Hoi! Ik ben ${spelerNaam || "een teamlid"} van team ${gekozenTeam.team_naam} en ik kom zo de statiegeldflessen ophalen voor ${clubNaam}!`
+          : "";
+        const whatsappUrl = bouwWhatsappUrl(adres?.donateur_telefoonnummer, whatsappTekst);
+
         return (
           <Card key={v.id} className="space-y-3 p-4">
             <div className="flex items-start justify-between gap-2">
@@ -137,11 +175,18 @@ export function Prikbord({ clubId, clubSlug }: { clubId: string; clubSlug: strin
             )}
 
             {v.status === "geclaimd" && jouwClaim && (
-              <Link href={`/club/${clubSlug}/upload?verzoek=${v.id}`}>
-                <Button size="sm" variant="secondary" className="w-full">
-                  <Camera className="h-4 w-4" /> Bonnetje uploaden
-                </Button>
-              </Link>
+              <div className="flex gap-2">
+                <a href={whatsappUrl} target="_blank" rel="noreferrer" className="flex-1">
+                  <Button size="sm" className="w-full bg-[#25D366] hover:bg-[#1ebe57]">
+                    <MessageCircleMore className="h-4 w-4" /> Laat weten dat je eraan komt
+                  </Button>
+                </a>
+                <Link href={`/club/${clubSlug}/upload?verzoek=${v.id}`} className="flex-1">
+                  <Button size="sm" variant="secondary" className="w-full">
+                    <Camera className="h-4 w-4" /> Bonnetje uploaden
+                  </Button>
+                </Link>
+              </div>
             )}
 
             {v.status === "geclaimd" && !jouwClaim && (

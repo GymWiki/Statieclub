@@ -10,6 +10,20 @@ via een live, gegamificeerd leaderboard om de meeste flessen op te halen.
 - **Tailwind CSS** voor styling, **Framer Motion** voor animatie, **Lucide React** voor iconen
 - **Supabase** (PostgreSQL + Auth + Realtime + Storage)
 
+## De 3 rollen en hun routes
+
+| Rol | Binnenkomst | Kernroutes |
+|---|---|---|
+| **Aanbieder** (buurtbewoner, geen account) | `/` (marketing) → `/donateren` (postcode) | `/clubs/[slug]` — thermometer + frictieloos ophaalformulier |
+| **Clublid** (lichte teamkeuze, geen account) | `/club/[slug]` (kies team + naam) | `/club/[slug]/leaderboard`, `/club/[slug]/prikbord` (claim + **WhatsApp-knop**), `/club/[slug]/upload` (OCR-scanner) |
+| **Beheerder** (echt account, e-mail+wachtwoord) | `/admin/login` → `/admin` | `/admin/[slug]` (dashboard), `/admin/[slug]/controle` (anomaly-verificatie), `/admin/[slug]/campagne-beheer` (teams + uitnodigingslinks) |
+
+Bewuste keuzes t.o.v. een 1-op-1 "ideale" routenaamgeving: de donor-flow
+heet `/donateren` + `/clubs/[slug]` i.p.v. `/zoek` + `/club/[clubId]` —
+die laatste naam was al in gebruik voor de teamlid-sectie. Clubleden
+loggen bewust niet in met een account (zie hieronder); "inloggen" voor
+hen is de lichte teamkeuze + naam.
+
 ## Mappenstructuur
 
 ```
@@ -21,8 +35,12 @@ app/
   club/[slug]/leaderboard/        Live scorebord
   club/[slug]/prikbord/           Ophaal Prikbord (claimen van adressen)
   club/[slug]/upload/             Hybride OCR Bonnetjes Scanner (ReceiptScanner)
-  admin/login/                    Penningmeester login/registratie (e-mail + wachtwoord)
-  admin/[slug]/page.tsx           Penningmeester-dashboard
+  admin/login/                    Login/registratie (e-mail + wachtwoord)
+  admin/nieuwe-club/              Zelfregistratie: nieuwe club aanmaken
+  admin/[slug]/layout.tsx         Gedeelde toegangscheck + tab-navigatie
+  admin/[slug]/page.tsx           Dashboard (saldo, campagne afronden, platform-factuur)
+  admin/[slug]/controle/          Anomaly-detection-verificatie (VerificatieLijst)
+  admin/[slug]/campagne-beheer/   Teams aanmaken + deelbare WhatsApp-uitnodigingslink
   auth/callback/                  Supabase Auth e-mailbevestiging-callback (na registratie)
   api/                            Route handlers (schrijfacties, service-role)
 
@@ -30,16 +48,17 @@ components/
   marketing/                      Landingspagina-secties (Nav, Hero, HowItWorks, ClubPitch, Footer)
   ui/                             Generieke UI-bouwstenen (Button, Card, ProgressBar, ...)
   donor/                          Donor-dashboard componenten
-  team/                           Club/team mobiele-view componenten
-  admin/                          Penningmeester-dashboard componenten
+  team/                           Club/team mobiele-view componenten (incl. WhatsApp-claimknop)
+  admin/                          Clubbeheer-componenten (dashboard, controle, campagnebeheer)
 
 lib/
   supabase/                       Browser-, server- en service-role Supabase clients
+  adminAuth.ts                    Gedeelde "is deze gebruiker beheerder van deze club"-check
   types.ts                        TypeScript-types die 1-op-1 het DB-schema volgen
-  utils.ts                        Formatting, puntenberekening, anomaly-detection-regels
+  utils.ts                        Formatting, puntenberekening, anomaly-detection-regels, WhatsApp-URL-builder
   ocr.ts                          Client-side "OCR-engine" (gesimuleerd) + regex-extractie
   motion.ts                       Gedeelde Framer Motion fade-up variant (respecteert reduced-motion)
-  donorProfile.ts / teamSelection.ts  Lichte lokale "wie ben ik"-opslag (localStorage)
+  donorProfile.ts / teamSelection.ts  Lichte lokale "wie ben ik"-opslag (localStorage, incl. spelersnaam)
 
 supabase/
   migrations/0001_init_schema.sql Tabellen, enums, triggers
@@ -228,6 +247,34 @@ in één transactie aan, gescopet op `auth.uid()` — er is geen bredere
 schrijftoegang tot die tabellen vanaf de client nodig. Heeft een
 account meerdere clubs, dan toont `/admin` een lijstje om te wisselen.
 
+### Campagnebeheer: teams + WhatsApp-uitnodiging
+
+`/admin/[slug]/campagne-beheer` (`components/admin/TeamsBeheer.tsx`)
+laat de beheerder teams toevoegen (`POST /api/clubs/[slug]/teams`,
+gated op `club_admins`) en per team een kant-en-klare WhatsApp-
+uitnodiging openen — een link naar `/club/[slug]/prikbord` met de
+instructie welk team te kiezen. Er is bewust geen los invite-token-
+systeem: teamleden hebben toch al geen account (zie hieronder), dus de
+link is puur een snelkoppeling naar de bestaande teamkeuze-flow.
+
+### WhatsApp-integratie bij het claimen (Ophaal Prikbord)
+
+Zodra een team een adres claimt op `/club/[slug]/prikbord`, verschijnt
+naast "Bonnetje uploaden" een groene knop die een `wa.me`-link opent
+met een vooraf ingevuld bericht: *"Hoi! Ik ben [naam] van team [team]
+en ik kom zo de statiegeldflessen ophalen voor [club]!"*. Is het
+telefoonnummer van de donateur bekend, dan opent de link direct een
+chat mét die donateur (`lib/utils.ts#naarWhatsappNummer` normaliseert
+NL-nummers naar het `31...`-formaat dat wa.me verwacht); zonder nummer
+valt hij terug op een generieke share-link. De `[naam]` komt uit een
+kleine uitbreiding van de bestaande lichte teamkeuze: bij het kiezen
+van een team wordt nu ook eenmalig de eigen voornaam gevraagd
+(`TeamKiezer.tsx`, opgeslagen naast de teamkeuze in `localStorage` —
+zie "Beveiliging" hieronder voor de vertrouwensgrens van dit model).
+Na een paginaverversing wordt het donateuradres (en dus het
+telefoonnummer) opnieuw opgehaald via `GET /api/ophaalverzoeken/[id]`
+zodat de knop ook dan blijft werken, niet alleen direct na het claimen.
+
 ## Lokaal draaien
 
 ```bash
@@ -266,8 +313,12 @@ Supabase-dashboard van je project:
   upgrade naar Next.js 16 volledig oplossen; hier bewust niet
   automatisch op geüpgraded om de scaffolding niet te breken — check dit
   voor productiegebruik.
-- Teamlid-identificatie is een lokale keuze (localStorage), geen echte
-  login — zie beveiligingssectie hierboven.
+- Teamlid-identificatie is een lokale keuze (localStorage) + voornaam,
+  geen echte login — zie beveiligingssectie hierboven. De `team_members`-
+  tabel (Supabase Auth per teamlid) staat al in het schema maar wordt
+  bewust niet gebruikt: een volwaardige login-stap zou de "frictieloos
+  claimen op de fiets"-ervaring vertragen. Bij een latere behoefte aan
+  echte accountability per speler is dat de aangewezen uitbreiding.
 - Het prikbord ververst via polling (elke 5s), niet via Supabase
   Realtime, omdat de onderliggende tabel bewust geen anon-leesrechten
   heeft (RLS). Het leaderboard gebruikt wél echte Realtime, want
