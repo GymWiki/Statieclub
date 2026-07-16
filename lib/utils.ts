@@ -105,22 +105,3 @@ export function statusKleur(status: string): string {
   };
   return kleuren[status] ?? "bg-gray-100 text-gray-700 border-gray-300";
 }
-
-/**
- * Simuleert OCR op een bonnetje-foto: leest geen echte pixels, maar
- * genereert een deterministisch, plausibel totaalbedrag op basis van
- * bestandsnaam + grootte, zodat eenzelfde upload altijd hetzelfde
- * "gescande" bedrag oplevert. Duidelijk gelabeld als simulatie —
- * in productie hier een echte OCR-provider (bv. Google Vision) aan koppelen.
- */
-export function simuleerOcrBedrag(bestandsnaam: string, bestandsgrootte: number): number {
-  let hash = 0;
-  const seed = `${bestandsnaam}:${bestandsgrootte}`;
-  for (let i = 0; i < seed.length; i++) {
-    hash = (hash * 31 + seed.charCodeAt(i)) >>> 0;
-  }
-  const min = 1.5;
-  const max = 60;
-  const bedrag = min + (hash % 5850) / 100;
-  return Math.round(Math.min(bedrag, max) * 100) / 100;
-}

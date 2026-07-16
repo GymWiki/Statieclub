@@ -19,7 +19,7 @@ app/
   club/[slug]/layout.tsx          Mobiele shell voor teamleden (teamkeuze + bottom nav)
   club/[slug]/leaderboard/        Live scorebord
   club/[slug]/prikbord/           Ophaal Prikbord (claimen van adressen)
-  club/[slug]/upload/             Bonnetjes Upload Simulator (OCR)
+  club/[slug]/upload/             Hybride OCR Bonnetjes Scanner (ReceiptScanner)
   admin/login/                    Penningmeester magic-link login
   admin/[slug]/page.tsx           Penningmeester-dashboard
   auth/callback/                  Supabase Auth magic-link callback
@@ -34,7 +34,8 @@ components/
 lib/
   supabase/                       Browser-, server- en service-role Supabase clients
   types.ts                        TypeScript-types die 1-op-1 het DB-schema volgen
-  utils.ts                        Formatting, puntenberekening, OCR-simulatie
+  utils.ts                        Formatting, puntenberekening, anomaly-detection-regels
+  ocr.ts                          Client-side "OCR-engine" (gesimuleerd) + regex-extractie
   donorProfile.ts / teamSelection.ts  Lichte lokale "wie ben ik"-opslag (localStorage)
 
 supabase/
@@ -139,13 +140,41 @@ uit te sluiten).
   een productie-uitrol is het aan te raden hier alsnog `team_members` +
   Supabase Auth voor te gebruiken.
 
-## OCR-simulatie
+## Hybride OCR Bonnetjes Scanner (`ReceiptScanner`)
 
-`lib/utils.ts#simuleerOcrBedrag` doet geen echte beeldherkenning — het
-genereert een deterministisch, plausibel bedrag op basis van
-bestandsnaam + grootte. Duidelijk gelabeld als simulatie; in productie
-hier een echte OCR-provider (bv. Google Vision, AWS Textract) aan
-koppelen.
+`components/team/ReceiptScanner.tsx` is de primaire manier waarop
+teamleden een bonnetje inleveren, gebouwd als expliciete state-machine:
+
+```
+capture → verwerken → verifiëren → opslaan → gelukt
+```
+
+1. **Capture** — camera/galerij openen (`<input type="file" accept="image/*" capture="environment" />`), foto direct als preview.
+2. **Verwerken** — de foto wordt **client-side** "gescand" (`lib/ocr.ts#scanBonnetje`, geen netwerkverkeer, dus €0 aan API-kosten per scan) terwijl een spinner "Bonnetje analyseren…" toont. Regex `(?:EUR|€)?\s*(\d+[,.]\d{2})` haalt bedragen uit de (gesimuleerde) herkende tekst; bij meerdere treffers wint een regel met "totaal"/"statiegeld", anders het hoogste bedrag.
+3. **Verifiëren — de kernstap** — het gevonden bedrag wordt groot getoond naast de foto, en moet altijd expliciet worden bevestigd:
+   - **"Ja, klopt!"** → direct opslaan.
+   - **"Pas aan"** → bedrag wordt een actief invoerveld (foto blijft staan) totdat "Punten claimen" wordt bevestigd.
+   - **"Opnieuw scannen"** → reset volledig terug naar capture.
+   - Vindt de (gesimuleerde) OCR **niets** (~1 op de 8 scans, ter illustratie van een te wazige foto), dan opent het invoerveld automatisch — de foto blijft bewaard, alleen het bedrag moet handmatig in.
+4. **Opslaan** — de foto gaat naar de Supabase Storage-bucket `bonnetjes`; pas ná bevestiging post de client het **door de gebruiker geverifieerde** bedrag naar `POST /api/bonnetjes`. Bij succes: confetti + direct oplopende score (of, als de anomaly detection alsnog toeslaat, een "wordt gecontroleerd"-melding).
+
+**Waarom gesimuleerd i.p.v. een echte Tesseract.js-integratie?** Echte
+on-device OCR vereist het downloaden van een taalmodel van meerdere
+MB's per gebruiker plus een web worker — dat past niet bij "kosten op
+nul en altijd snel beschikbaar" in een demo-omgeving, en zou hier ook
+niet zinvol te testen zijn zonder echte gefotografeerde bonnetjes. De
+"OCR-engine" in `lib/ocr.ts` is bewust achter een stabiele
+`scanBonnetje(bestand)`-functie verstopt: om over te stappen op echte
+herkenning hoeft alleen de tekst-generatie vervangen te worden door
+bijvoorbeeld `(await createWorker('nld').recognize(bestand)).data.text`
+— de regex-extractielogica (`kiesBesteBedrag`) blijft ongewijzigd
+werken.
+
+De server (`POST /api/bonnetjes`) vertrouwt het door de gebruiker
+bevestigde bedrag, maar blijft wél zelf de autoriteit over de anomaly
+detection (bedragdrempel + scanpatroon) — een cliënt kan dus nooit de
+verificatieplicht van de penningmeester omzeilen door zelf een status
+mee te sturen.
 
 ## Lokaal draaien
 
