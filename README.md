@@ -230,6 +230,26 @@ een account aan te maken (of in te loggen) en daarna handmatig een rij
 toe te voegen aan `club_admins` met jouw `auth.users`-id en de
 `club_id` van bijv. SV De Meteoor.
 
+### Auth-mails vanaf je eigen domein i.p.v. Supabase
+
+Standaard verstuurt Supabase de "Confirm signup"-mail via hun eigen
+gedeelde (niet-productiewaardige) mailserver — dit staat los van een
+custom domain dat je aan Vercel hebt gekoppeld, want dat is alleen voor
+de website. Om de mail als Statieclub te laten verzenden, in het
+Supabase-dashboard van je project:
+
+1. **Authentication → SMTP Settings**: zet een custom SMTP-provider op
+   (bijv. [Resend](https://resend.com/docs/send-with-supabase-smtp),
+   Postmark, SendGrid of AWS SES) met een verzendadres op je eigen
+   domein, bijv. `no-reply@statieclub.nl`. Zonder dit blijft elke mail
+   — ook met een aangepaste template — vanaf Supabase's adres komen.
+   Vergeet niet SPF/DKIM voor dat domein bij je provider in te
+   stellen voor goede afleverbaarheid.
+2. **Authentication → Email Templates → Confirm signup**: subject
+   `Bevestig je Statieclub-account`, body = de kant-en-klare template
+   uit
+   [`supabase/email-templates/confirm-signup.html`](supabase/email-templates/confirm-signup.html).
+
 ## Bekende beperkingen (MVP-scope)
 
 - `npm audit` meldt een aantal kwetsbaarheden die alleen met een major
