@@ -7,11 +7,19 @@ import { Card } from "@/components/ui/Card";
 import { ProgressBar } from "@/components/ui/ProgressBar";
 import { AnimatedNumber } from "@/components/ui/AnimatedNumber";
 import { formatEuro, formatVoortgang } from "@/lib/utils";
-import type { Club, Team } from "@/lib/types";
+import type { Club, Doel, Team } from "@/lib/types";
 
-export function SaldoOverzicht({ club, initialTeams }: { club: Club; initialTeams: Team[] }) {
+export function SaldoOverzicht({
+  club,
+  initialTeams,
+  initialDoelen,
+}: {
+  club: Club;
+  initialTeams: Team[];
+  initialDoelen: Doel[];
+}) {
   const [teams, setTeams] = useState<Team[]>(initialTeams);
-  const [opgehaaldBedrag, setOpgehaaldBedrag] = useState(club.opgehaald_bedrag);
+  const [doelen, setDoelen] = useState<Doel[]>(initialDoelen);
 
   useEffect(() => {
     const supabase = createClient();
@@ -26,8 +34,10 @@ export function SaldoOverzicht({ club, initialTeams }: { club: Club; initialTeam
       )
       .on(
         "postgres_changes",
-        { event: "UPDATE", schema: "public", table: "clubs", filter: `id=eq.${club.id}` },
-        (payload) => setOpgehaaldBedrag((payload.new as Club).opgehaald_bedrag)
+        { event: "UPDATE", schema: "public", table: "doelen", filter: `club_id=eq.${club.id}` },
+        (payload) => {
+          setDoelen((prev) => prev.map((d) => (d.id === payload.new.id ? { ...d, ...(payload.new as Doel) } : d)));
+        }
       )
       .subscribe();
 
@@ -36,8 +46,9 @@ export function SaldoOverzicht({ club, initialTeams }: { club: Club; initialTeam
     };
   }, [club.id]);
 
-  const percentage = formatVoortgang(opgehaaldBedrag, club.doelbedrag);
+  const virtueelSaldo = teams.reduce((som, t) => som + t.totaal_opgehaald_euro, 0);
   const gesorteerd = [...teams].sort((a, b) => b.totaal_opgehaald_euro - a.totaal_opgehaald_euro);
+  const actieveDoelen = doelen.filter((d) => d.is_actief);
 
   return (
     <div className="space-y-4">
@@ -47,18 +58,29 @@ export function SaldoOverzicht({ club, initialTeams }: { club: Club; initialTeam
             <Wallet className="h-4 w-4" /> Virtueel saldo (via app verzameld)
           </p>
           <p className="mt-1 text-3xl font-extrabold text-brand-700">
-            <AnimatedNumber value={opgehaaldBedrag} format={formatEuro} />
+            <AnimatedNumber value={virtueelSaldo} format={formatEuro} />
           </p>
         </Card>
         <Card className="p-5">
           <p className="flex items-center gap-1.5 text-sm text-gray-500">
-            <Target className="h-4 w-4" /> Spaardoel: {club.actief_spaardoel}
+            <Target className="h-4 w-4" /> Actieve doelen
           </p>
-          <div className="mt-2 space-y-1">
-            <ProgressBar percentage={percentage} />
-            <p className="text-xs text-gray-500">
-              {formatEuro(opgehaaldBedrag)} van {formatEuro(club.doelbedrag)} ({percentage}%)
-            </p>
+          <div className="mt-2 space-y-3">
+            {actieveDoelen.length === 0 && (
+              <p className="text-xs text-gray-400">Nog geen actief doel — beheer dit op het tabblad &ldquo;Doelen&rdquo;.</p>
+            )}
+            {actieveDoelen.map((doel) => {
+              const percentage = formatVoortgang(doel.opgehaald_bedrag, doel.doelbedrag);
+              return (
+                <div key={doel.id} className="space-y-1">
+                  <p className="text-xs font-medium text-gray-700">{doel.titel}</p>
+                  <ProgressBar percentage={percentage} />
+                  <p className="text-xs text-gray-500">
+                    {formatEuro(doel.opgehaald_bedrag)} van {formatEuro(doel.doelbedrag)} ({percentage}%)
+                  </p>
+                </div>
+              );
+            })}
           </div>
         </Card>
       </div>

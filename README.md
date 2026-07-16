@@ -66,6 +66,8 @@ supabase/
   migrations/0003_storage.sql     Storage-bucket voor bonnetje-foto's
   migrations/0004_bonnetje_status_enum.sql  Nieuwe status 'in_afwachting_controle'
   migrations/0005_anomaly_detection_en_facturatie.sql  flag_reden, herziene triggers, facturen-tabel
+  migrations/0006_zelfregistratie_clubs.sql  RPC maak_club_met_beheerder (v1), rol-kolom weg
+  migrations/0007_meerdere_doelen_per_club.sql  doelen-tabel, ophaalverzoeken.doel_id, RPC v2 zonder doel
   seed.sql                        Demodata voor lokale ontwikkeling
 ```
 
@@ -76,14 +78,22 @@ Volledig relationeel, geen geneste/array/JSON-lijstkolommen — elke
 
 | Tabel | Belangrijkste kolommen |
 |---|---|
-| `clubs` | naam, slug, postcode, regio, actief_spaardoel, doelbedrag, opgehaald_bedrag |
+| `clubs` | naam, slug, postcode, regio |
+| `doelen` | club_id, titel, doelbedrag, opgehaald_bedrag, is_actief |
 | `teams` | club_id, team_naam, totaal_punten, totaal_opgehaald_euro |
 | `donateurs` | naam, email (uniek), adres, postcode, telefoonnummer |
-| `ophaalverzoeken` | donateur_id, club_id, geclaimd_door_team_id, status, aantal_geschat |
+| `ophaalverzoeken` | donateur_id, club_id, doel_id, geclaimd_door_team_id, status, aantal_geschat |
 | `bonnetjes` | ophaalverzoek_id, team_id, foto_url, bedrag_euro, punten, status, flag_reden |
-| `club_admins` | club_id, user_id (Supabase Auth), rol |
+| `club_admins` | club_id, user_id (Supabase Auth) |
 | `team_members` | team_id, user_id (Supabase Auth), naam |
 | `facturen` | club_id, periode_start, periode_eind, totaal_goedgekeurd_bedrag, platform_fee_bedrag, status |
+
+Een club heeft dus **0, 1 of meerdere `doelen`** (spaarcampagnes) —
+zowel na elkaar als gelijktijdig. Het aanmaken van een club vraagt niet
+meer om een doel; dat voeg je apart toe via
+`/admin/[slug]/doelen`. Een donateur kiest bij het invullen van het
+ophaalformulier welk actief doel van de club hij steunt
+(`ophaalverzoeken.doel_id`).
 
 **Triggers** houden de scores automatisch consistent:
 - Bij het inleveren van een bonnetje bepaalt de anomaly-detection-check
@@ -91,13 +101,16 @@ Volledig relationeel, geen geneste/array/JSON-lijstkolommen — elke
   punten/euro's **direct** naar het team (instant gratification) en het
   ophaalverzoek naar `voltooid` — of dat het op `in_afwachting_controle`
   blijft staan totdat de penningmeester het beoordeelt.
-- `clubs.opgehaald_bedrag` is altijd de som van alle teamtotalen — het
-  "virtuele" saldo dat de penningmeester ziet.
+- Wordt een bonnetje goedgekeurd, dan telt het bedrag zowel mee voor het
+  team (`teams.totaal_opgehaald_euro`, ongewijzigd) als — via het
+  `doel_id` van het bijbehorende ophaalverzoek — voor het specifieke
+  doel dat die donateur koos (`doelen.opgehaald_bedrag`). Geen doel
+  gekoppeld? Dan telt het gewoon alleen voor het team.
 - Keurt de penningmeester een bonnetje later alsnog goed (of overschrijft
   het bedrag), dan worden de punten/euro's op dát moment bijgeschreven en
   gaat het ophaalverzoek naar `voltooid`.
 - Keurt de penningmeester een bonnetje af nadat het al meetelde, dan
-  wordt het bedrag automatisch weer van het team afgetrokken.
+  wordt het bedrag automatisch weer van het team én het doel afgetrokken.
 
 ### Anomaly Detection & verificatie-workflow (Penningmeester Dashboard)
 
@@ -240,12 +253,15 @@ sturen.
 Er is bewust geen vaste rol als "penningmeester" — wie een account
 aanmaakt op `/admin/login` kan direct zelf een of meerdere clubs
 aanmaken (`/admin/nieuwe-club`) en wordt daarmee automatisch beheerder
-van die club(s), via de database-functie
-`maak_club_met_beheerder` (`supabase/migrations/0006_...sql`). Die
+van die club(s), via de database-functie `maak_club_met_beheerder`
+(`supabase/migrations/0006_...sql`, met een aangepaste parameterlijst
+in `0007_...sql` zodra doelen loskomen van clubs — zie hieronder). Die
 `security definer`-functie maakt de club én de `club_admins`-koppeling
 in één transactie aan, gescopet op `auth.uid()` — er is geen bredere
 schrijftoegang tot die tabellen vanaf de client nodig. Heeft een
 account meerdere clubs, dan toont `/admin` een lijstje om te wisselen.
+Club aanmaken vraagt bewust niet meteen om een spaardoel — dat voeg je
+daarna toe op `/admin/[slug]/doelen`.
 
 ### Campagnebeheer: teams + WhatsApp-uitnodiging
 

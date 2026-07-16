@@ -6,13 +6,15 @@ import { Button } from "@/components/ui/Button";
 import { Input, Label } from "@/components/ui/Input";
 import { Card } from "@/components/ui/Card";
 import { laadDonorProfiel, bewaarDonorProfiel } from "@/lib/donorProfile";
+import type { Doel } from "@/lib/types";
 
-export function OphaalForm({ clubId, clubNaam }: { clubId: string; clubNaam: string }) {
+export function OphaalForm({ clubId, clubNaam, doelen }: { clubId: string; clubNaam: string; doelen: Doel[] }) {
   const [naam, setNaam] = useState("");
   const [email, setEmail] = useState("");
   const [adres, setAdres] = useState("");
   const [postcode, setPostcode] = useState("");
   const [telefoonnummer, setTelefoonnummer] = useState("");
+  const [doelId, setDoelId] = useState(doelen[0]?.id ?? "");
   const [aantalGeschat, setAantalGeschat] = useState(20);
   const [opmerking, setOpmerking] = useState("");
 
@@ -48,6 +50,7 @@ export function OphaalForm({ clubId, clubNaam }: { clubId: string; clubNaam: str
           postcode,
           telefoonnummer,
           club_id: clubId,
+          doel_id: doelId,
           aantal_geschat: aantalGeschat,
           opmerking,
         }),
@@ -90,6 +93,24 @@ export function OphaalForm({ clubId, clubNaam }: { clubId: string; clubNaam: str
       )}
 
       <form onSubmit={handleSubmit} className="space-y-4">
+        {doelen.length > 1 && (
+          <div>
+            <Label htmlFor="doel">Welk doel wil je steunen?</Label>
+            <select
+              id="doel"
+              required
+              value={doelId}
+              onChange={(e) => setDoelId(e.target.value)}
+              className="w-full rounded-xl border border-gray-300 px-4 py-3 text-base text-gray-900 focus:border-brand-500 focus:outline-none focus:ring-2 focus:ring-brand-500/20"
+            >
+              {doelen.map((doel) => (
+                <option key={doel.id} value={doel.id}>
+                  {doel.titel}
+                </option>
+              ))}
+            </select>
+          </div>
+        )}
         <div>
           <Label htmlFor="naam">Naam</Label>
           <Input id="naam" required value={naam} onChange={(e) => setNaam(e.target.value)} placeholder="Voor- en achternaam" />

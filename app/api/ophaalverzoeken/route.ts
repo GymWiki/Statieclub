@@ -20,9 +20,19 @@ export async function POST(request: NextRequest) {
   const adres = body.adres?.trim();
   const postcode = body.postcode ? normaliseerPostcode(body.postcode) : "";
   const clubId = body.club_id;
+  const doelId = body.doel_id;
   const aantalGeschat = Number(body.aantal_geschat);
 
-  if (!naam || !email || !adres || !postcode || !clubId || !Number.isFinite(aantalGeschat) || aantalGeschat <= 0) {
+  if (
+    !naam ||
+    !email ||
+    !adres ||
+    !postcode ||
+    !clubId ||
+    !doelId ||
+    !Number.isFinite(aantalGeschat) ||
+    aantalGeschat <= 0
+  ) {
     return NextResponse.json({ error: "Vul alle verplichte velden correct in." }, { status: 400 });
   }
   if (!/^\S+@\S+\.\S+$/.test(email)) {
@@ -30,6 +40,18 @@ export async function POST(request: NextRequest) {
   }
 
   const supabase = createServiceRoleClient();
+
+  const { data: doel } = await supabase
+    .from("doelen")
+    .select("id")
+    .eq("id", doelId)
+    .eq("club_id", clubId)
+    .eq("is_actief", true)
+    .maybeSingle();
+
+  if (!doel) {
+    return NextResponse.json({ error: "Dit doel bestaat niet (meer) of is niet actief." }, { status: 400 });
+  }
 
   const { data: donateur, error: donateurError } = await supabase
     .from("donateurs")
@@ -58,6 +80,7 @@ export async function POST(request: NextRequest) {
     .insert({
       donateur_id: donateur.id,
       club_id: clubId,
+      doel_id: doelId,
       aantal_geschat: aantalGeschat,
       opmerking: body.opmerking?.trim() || null,
     })

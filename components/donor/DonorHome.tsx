@@ -5,13 +5,15 @@ import { Search } from "lucide-react";
 import { Input } from "@/components/ui/Input";
 import { ClubCard } from "@/components/donor/ClubCard";
 import { postcodeCijfers } from "@/lib/utils";
-import type { Club } from "@/lib/types";
+import type { Club, Doel } from "@/lib/types";
 
 export function DonorHome({
   initialClubs,
+  doelenPerClub,
   initialPostcode = "",
 }: {
   initialClubs: Club[];
+  doelenPerClub: Record<string, Doel[]>;
   initialPostcode?: string;
 }) {
   const [postcode, setPostcode] = useState(initialPostcode);
@@ -65,7 +67,7 @@ export function DonorHome({
 
       <div className="mt-10 grid grid-cols-1 gap-4 sm:grid-cols-2">
         {gesorteerdeClubs.map((club) => (
-          <ClubCard key={club.id} club={club} />
+          <ClubCard key={club.id} club={club} doelen={doelenPerClub[club.id] ?? []} />
         ))}
         {gesorteerdeClubs.length === 0 && (
           <p className="col-span-full text-center text-gray-500">

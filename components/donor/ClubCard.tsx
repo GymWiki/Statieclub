@@ -4,10 +4,12 @@ import { MapPin, Trophy } from "lucide-react";
 import { Card } from "@/components/ui/Card";
 import { ProgressBar } from "@/components/ui/ProgressBar";
 import { formatEuro, formatVoortgang } from "@/lib/utils";
-import type { Club } from "@/lib/types";
+import type { Club, Doel } from "@/lib/types";
 
-export function ClubCard({ club }: { club: Club }) {
-  const percentage = formatVoortgang(club.opgehaald_bedrag, club.doelbedrag);
+export function ClubCard({ club, doelen }: { club: Club; doelen: Doel[] }) {
+  const actieveDoelen = doelen.filter((d) => d.is_actief);
+  const hoofdDoel = actieveDoelen[0];
+  const percentage = hoofdDoel ? formatVoortgang(hoofdDoel.opgehaald_bedrag, hoofdDoel.doelbedrag) : 0;
 
   return (
     <Link href={`/clubs/${club.slug}`}>
@@ -28,19 +30,31 @@ export function ClubCard({ club }: { club: Club }) {
           </div>
         </div>
 
-        <p className="text-sm text-gray-600">
-          Spaart voor: <span className="font-medium text-gray-800">{club.actief_spaardoel}</span>
-        </p>
+        {hoofdDoel ? (
+          <>
+            <p className="text-sm text-gray-600">
+              Spaart voor: <span className="font-medium text-gray-800">{hoofdDoel.titel}</span>
+              {actieveDoelen.length > 1 && (
+                <span className="ml-1.5 rounded-full bg-brand-50 px-2 py-0.5 text-xs font-medium text-brand-700">
+                  +{actieveDoelen.length - 1} ander{actieveDoelen.length - 1 === 1 ? "" : "e"} doel
+                  {actieveDoelen.length - 1 === 1 ? "" : "en"}
+                </span>
+              )}
+            </p>
 
-        <div className="mt-auto space-y-1.5">
-          <ProgressBar percentage={percentage} />
-          <div className="flex items-center justify-between text-xs text-gray-500">
-            <span>
-              {formatEuro(club.opgehaald_bedrag)} van {formatEuro(club.doelbedrag)}
-            </span>
-            <span className="font-semibold text-brand-700">{percentage}%</span>
-          </div>
-        </div>
+            <div className="mt-auto space-y-1.5">
+              <ProgressBar percentage={percentage} />
+              <div className="flex items-center justify-between text-xs text-gray-500">
+                <span>
+                  {formatEuro(hoofdDoel.opgehaald_bedrag)} van {formatEuro(hoofdDoel.doelbedrag)}
+                </span>
+                <span className="font-semibold text-brand-700">{percentage}%</span>
+              </div>
+            </div>
+          </>
+        ) : (
+          <p className="mt-auto text-sm text-gray-400">Momenteel geen actieve inzamelingsactie.</p>
+        )}
       </Card>
     </Link>
   );

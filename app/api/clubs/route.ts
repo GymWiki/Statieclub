@@ -58,11 +58,9 @@ export async function POST(request: NextRequest) {
   const naam = body.naam?.trim();
   const postcode = body.postcode?.trim();
   const regio = body.regio?.trim();
-  const actiefSpaardoel = body.actief_spaardoel?.trim();
-  const doelbedrag = Number(body.doelbedrag);
   const logoUrl = body.logo_url?.trim() || null;
 
-  if (!naam || !postcode || !regio || !actiefSpaardoel || !Number.isFinite(doelbedrag) || doelbedrag < 0) {
+  if (!naam || !postcode || !regio) {
     return NextResponse.json({ error: "Vul alle verplichte velden correct in." }, { status: 400 });
   }
 
@@ -71,8 +69,6 @@ export async function POST(request: NextRequest) {
       p_naam: naam,
       p_postcode: postcode,
       p_regio: regio,
-      p_actief_spaardoel: actiefSpaardoel,
-      p_doelbedrag: doelbedrag,
       p_logo_url: logoUrl,
     })
     .single();

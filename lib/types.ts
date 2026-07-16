@@ -20,7 +20,16 @@ export interface Club {
   logo_url: string | null;
   postcode: string;
   regio: string;
-  actief_spaardoel: string;
+  is_actief: boolean;
+  created_at: string;
+  updated_at: string;
+}
+
+/** Een spaardoel/campagne van een club — een club kan er 0, 1 of meerdere hebben. */
+export interface Doel {
+  id: string;
+  club_id: string;
+  titel: string;
   doelbedrag: number;
   opgehaald_bedrag: number;
   is_actief: boolean;
@@ -53,6 +62,7 @@ export interface Ophaalverzoek {
   id: string;
   donateur_id: string;
   club_id: string;
+  doel_id: string | null;
   geclaimd_door_team_id: string | null;
   status: OphaalverzoekStatus;
   aantal_geschat: number;
@@ -133,6 +143,7 @@ export interface OphaalformulierInput {
   postcode: string;
   telefoonnummer?: string;
   club_id: string;
+  doel_id: string;
   aantal_geschat: number;
   opmerking?: string;
 }
