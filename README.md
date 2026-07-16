@@ -21,9 +21,9 @@ app/
   club/[slug]/leaderboard/        Live scorebord
   club/[slug]/prikbord/           Ophaal Prikbord (claimen van adressen)
   club/[slug]/upload/             Hybride OCR Bonnetjes Scanner (ReceiptScanner)
-  admin/login/                    Penningmeester magic-link login
+  admin/login/                    Penningmeester login/registratie (e-mail + wachtwoord)
   admin/[slug]/page.tsx           Penningmeester-dashboard
-  auth/callback/                  Supabase Auth magic-link callback
+  auth/callback/                  Supabase Auth e-mailbevestiging-callback (na registratie)
   api/                            Route handlers (schrijfacties, service-role)
 
 components/
@@ -172,7 +172,7 @@ data-fetch duurt.
   pas server-side vrijgegeven zodra een team het verzoek claimt.
 - Alleen de **penningmeester-verificatie** (bonnetje goed-/afkeuren,
   echt geld bevestigen) vereist een ingelogde gebruiker die via
-  `club_admins` aan die club gekoppeld is (Supabase Auth magic link).
+  `club_admins` aan die club gekoppeld is (Supabase Auth, e-mail + wachtwoord).
 - Het **claimen** van adressen en **uploaden** van bonnetjes door
   teamleden is bewust laagdrempelig gehouden (geen login) — dit past
   bij de doelgroep (jeugdleden op de fiets) en de vertrouwensgrens ligt
@@ -225,10 +225,10 @@ npx supabase db reset        # migraties + seed.sql (met de Supabase CLI)
 npm run dev
 ```
 
-Maak jezelf penningmeester van een demo-club door na het inloggen
-(magic link op `/admin/login`) handmatig een rij toe te voegen aan
-`club_admins` met jouw `auth.users`-id en de `club_id` van bijv.
-SV De Meteoor.
+Maak jezelf penningmeester van een demo-club door op `/admin/login`
+een account aan te maken (of in te loggen) en daarna handmatig een rij
+toe te voegen aan `club_admins` met jouw `auth.users`-id en de
+`club_id` van bijv. SV De Meteoor.
 
 ## Bekende beperkingen (MVP-scope)
 

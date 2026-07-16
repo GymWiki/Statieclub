@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createClient } from "@/lib/supabase/server";
 
-/** Wisselt de magic-link-code van Supabase Auth om voor een sessie. */
+/** Wisselt de bevestigingscode van Supabase Auth (na e-mailbevestiging bij registratie) om voor een sessie. */
 export async function GET(request: NextRequest) {
   const code = request.nextUrl.searchParams.get("code");
   const next = request.nextUrl.searchParams.get("next") ?? "/admin";
