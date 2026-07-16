@@ -1,14 +1,19 @@
-import { createClient } from "@/lib/supabase/server";
-import { DonorHome } from "@/components/donor/DonorHome";
-import type { Club } from "@/lib/types";
+import { Nav } from "@/components/marketing/Nav";
+import { Hero } from "@/components/marketing/Hero";
+import { HowItWorks } from "@/components/marketing/HowItWorks";
+import { ClubPitch } from "@/components/marketing/ClubPitch";
+import { Footer } from "@/components/marketing/Footer";
 
-export default async function HomePage() {
-  const supabase = await createClient();
-  const { data: clubs } = await supabase
-    .from("clubs")
-    .select("*")
-    .eq("is_actief", true)
-    .order("naam");
-
-  return <DonorHome initialClubs={(clubs as Club[]) ?? []} />;
+export default function HomePage() {
+  return (
+    <>
+      <Nav />
+      <main>
+        <Hero />
+        <HowItWorks />
+        <ClubPitch />
+      </main>
+      <Footer />
+    </>
+  );
 }

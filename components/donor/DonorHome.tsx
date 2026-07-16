@@ -7,8 +7,14 @@ import { ClubCard } from "@/components/donor/ClubCard";
 import { postcodeCijfers } from "@/lib/utils";
 import type { Club } from "@/lib/types";
 
-export function DonorHome({ initialClubs }: { initialClubs: Club[] }) {
-  const [postcode, setPostcode] = useState("");
+export function DonorHome({
+  initialClubs,
+  initialPostcode = "",
+}: {
+  initialClubs: Club[];
+  initialPostcode?: string;
+}) {
+  const [postcode, setPostcode] = useState(initialPostcode);
 
   const gesorteerdeClubs = useMemo(() => {
     const cijfers = postcodeCijfers(postcode);

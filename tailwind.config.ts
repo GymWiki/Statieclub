@@ -1,4 +1,5 @@
 import type { Config } from "tailwindcss";
+import defaultTheme from "tailwindcss/defaultTheme";
 
 const config: Config = {
   content: [
@@ -7,6 +8,10 @@ const config: Config = {
   ],
   theme: {
     extend: {
+      fontFamily: {
+        display: ["var(--font-display)", ...defaultTheme.fontFamily.sans],
+        body: ["var(--font-body)", ...defaultTheme.fontFamily.sans],
+      },
       colors: {
         brand: {
           50: "#eefdf5",
@@ -37,10 +42,21 @@ const config: Config = {
           "40%": { transform: "scale(1.08)" },
           "100%": { transform: "scale(1)" },
         },
+        "radar-ping": {
+          "0%": { transform: "scale(0.9)", opacity: "0.55" },
+          "100%": { transform: "scale(1.8)", opacity: "0" },
+        },
+        "mesh-drift": {
+          "0%, 100%": { transform: "translate(0%, 0%) scale(1)" },
+          "33%": { transform: "translate(3%, -4%) scale(1.05)" },
+          "66%": { transform: "translate(-3%, 3%) scale(0.98)" },
+        },
       },
       animation: {
         "count-flash": "count-flash 900ms ease-out",
         "pop": "pop 400ms ease-out",
+        "radar-ping": "radar-ping 2.2s cubic-bezier(0.2, 0.7, 0.3, 1) infinite",
+        "mesh-drift": "mesh-drift 18s ease-in-out infinite",
       },
     },
   },

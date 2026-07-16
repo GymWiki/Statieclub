@@ -7,14 +7,15 @@ via een live, gegamificeerd leaderboard om de meeste flessen op te halen.
 ## Stack
 
 - **Next.js 14 (App Router)** + **React 18** + **TypeScript**
-- **Tailwind CSS** voor styling, **Lucide React** voor iconen
+- **Tailwind CSS** voor styling, **Framer Motion** voor animatie, **Lucide React** voor iconen
 - **Supabase** (PostgreSQL + Auth + Realtime + Storage)
 
 ## Mappenstructuur
 
 ```
 app/
-  page.tsx                        Donor-landingspagina (postcode + clubgrid)
+  page.tsx                        Marketing-landingspagina (Nav/Hero/HowItWorks/ClubPitch/Footer)
+  donateren/page.tsx              Functionele donor-flow (postcode + live clubgrid, met ?postcode=)
   clubs/[slug]/page.tsx           Club-detail + ophaalformulier (donor)
   club/[slug]/layout.tsx          Mobiele shell voor teamleden (teamkeuze + bottom nav)
   club/[slug]/leaderboard/        Live scorebord
@@ -26,6 +27,7 @@ app/
   api/                            Route handlers (schrijfacties, service-role)
 
 components/
+  marketing/                      Landingspagina-secties (Nav, Hero, HowItWorks, ClubPitch, Footer)
   ui/                             Generieke UI-bouwstenen (Button, Card, ProgressBar, ...)
   donor/                          Donor-dashboard componenten
   team/                           Club/team mobiele-view componenten
@@ -36,6 +38,7 @@ lib/
   types.ts                        TypeScript-types die 1-op-1 het DB-schema volgen
   utils.ts                        Formatting, puntenberekening, anomaly-detection-regels
   ocr.ts                          Client-side "OCR-engine" (gesimuleerd) + regex-extractie
+  motion.ts                       Gedeelde Framer Motion fade-up variant (respecteert reduced-motion)
   donorProfile.ts / teamSelection.ts  Lichte lokale "wie ben ik"-opslag (localStorage)
 
 supabase/
@@ -118,6 +121,43 @@ hoeft iemand niets opnieuw in te vullen. Prefill gebeurt via een lokaal
 bewaard profiel in de browser (geen open "zoek op e-mailadres"-endpoint,
 om het risico van het lekken van namen/adressen via e-mail-enumeratie
 uit te sluiten).
+
+## Marketing-landingspagina (`app/page.tsx`)
+
+Losgekoppeld van de functionele donor-flow: `/` is een puur marketing-
+gerichte, hoog-converterende landingspagina; de echte postcode-zoeker
+met live Supabase-data staat op `/donateren` (de Hero-CTA linkt daar
+met `?postcode=` naartoe, al ingevuld).
+
+**Ontwerptokens:** Ink `slate-900` · Canvas `slate-50` · Mint
+`emerald-500/600` (donateur-accent) · Ocean `blue-600/700`
+(bestuurders-accent — een tweede kleur om de twee doelgroepen visueel
+te scheiden) · Cloud `slate-200`. Type: **Plus Jakarta Sans** (display,
+alleen grote headlines) + **Inter** (body/UI), geladen via
+`next/font/google` in `app/layout.tsx`.
+
+**Signature-element:** de postcode-zoekbalk in de Hero krijgt een
+zachte "radar-ping"-animatie zodra je typt — een letterlijke
+visualisatie van "we zoeken lokale clubs bij jou in de buurt", het ene
+gedurfde bewegingsmoment op de pagina. De 3-stappen-sectie gebruikt
+bewust wél genummerde stappen (in tegenstelling tot de generieke
+01/02/03-cliché) omdat het hier om een echte chronologische flow gaat,
+verbonden met een dunne gestippelde "route"-lijn.
+
+Alle scroll-reveals (`whileInView` in Framer Motion) en de CSS-
+animaties (`animate-mesh-drift`, `animate-radar-ping`) respecteren
+`prefers-reduced-motion` via `lib/motion.ts#useFadeUpVariants` resp.
+Tailwind's `motion-safe:`-variant.
+
+**Bekende afweging:** de Hero-CTA navigeert client-side naar
+`/donateren`, een Server Component die live clubs uit Supabase
+opvraagt. Zonder een correct geconfigureerde `NEXT_PUBLIC_SUPABASE_URL`
+(of bij een trage/onbereikbare database) kan die request enkele
+seconden duren. Om de knop niet "dood" te laten aanvoelen, toont de
+knop direct een spinner (`zoekend`-state in `Hero.tsx`) en toont
+`app/donateren/loading.tsx` meteen een skeleton zodra de navigatie
+start — zo is er altijd instant feedback, ongeacht hoe lang de
+data-fetch duurt.
 
 ### Beveiliging (RLS)
 
