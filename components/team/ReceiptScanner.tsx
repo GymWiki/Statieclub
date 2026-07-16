@@ -223,7 +223,7 @@ export function ReceiptScanner({
             <p className="text-gray-600">
               Gescand bedrag: <span className="font-bold text-gray-900">{formatEuro(resultaat.bedrag)}</span>.
               <br />
-              De penningmeester controleert dit bedrag voordat de punten meetellen op het scorebord.
+              Het bestuur controleert dit bedrag voordat de punten meetellen op het scorebord.
             </p>
           </>
         ) : (

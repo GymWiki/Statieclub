@@ -1,3 +1,4 @@
+import Link from "next/link";
 import { redirect, notFound } from "next/navigation";
 import { ShieldOff } from "lucide-react";
 import { createClient, createServiceRoleClient } from "@/lib/supabase/server";
@@ -27,7 +28,10 @@ export default async function AdminClubPage({ params }: { params: Promise<{ slug
     return (
       <div className="mx-auto flex max-w-md flex-col items-center gap-2 px-4 py-16 text-center text-gray-600">
         <ShieldOff className="h-10 w-10 text-gray-400" />
-        <p>Je account heeft geen penningmeester-toegang tot {club.naam}.</p>
+        <p>Je account heeft geen beheerderstoegang tot {club.naam}.</p>
+        <Link href="/admin" className="text-sm font-semibold text-brand-700 hover:underline">
+          Naar mijn clubs
+        </Link>
       </div>
     );
   }

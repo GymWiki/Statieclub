@@ -213,8 +213,20 @@ werken.
 De server (`POST /api/bonnetjes`) vertrouwt het door de gebruiker
 bevestigde bedrag, maar blijft wél zelf de autoriteit over de anomaly
 detection (bedragdrempel + scanpatroon) — een cliënt kan dus nooit de
-verificatieplicht van de penningmeester omzeilen door zelf een status
-mee te sturen.
+verificatieplicht van het bestuur omzeilen door zelf een status mee te
+sturen.
+
+## Clubbeheer: zelfregistratie
+
+Er is bewust geen vaste rol als "penningmeester" — wie een account
+aanmaakt op `/admin/login` kan direct zelf een of meerdere clubs
+aanmaken (`/admin/nieuwe-club`) en wordt daarmee automatisch beheerder
+van die club(s), via de database-functie
+`maak_club_met_beheerder` (`supabase/migrations/0006_...sql`). Die
+`security definer`-functie maakt de club én de `club_admins`-koppeling
+in één transactie aan, gescopet op `auth.uid()` — er is geen bredere
+schrijftoegang tot die tabellen vanaf de client nodig. Heeft een
+account meerdere clubs, dan toont `/admin` een lijstje om te wisselen.
 
 ## Lokaal draaien
 
@@ -225,10 +237,8 @@ npx supabase db reset        # migraties + seed.sql (met de Supabase CLI)
 npm run dev
 ```
 
-Maak jezelf penningmeester van een demo-club door op `/admin/login`
-een account aan te maken (of in te loggen) en daarna handmatig een rij
-toe te voegen aan `club_admins` met jouw `auth.users`-id en de
-`club_id` van bijv. SV De Meteoor.
+Maak op `/admin/login` een account aan — je komt vanzelf bij "maak je
+eerste club aan" terecht en bent daarna direct beheerder.
 
 ### Auth-mails vanaf je eigen domein i.p.v. Supabase
 

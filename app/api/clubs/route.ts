@@ -34,3 +34,52 @@ export async function GET(request: NextRequest) {
 
   return NextResponse.json({ clubs: [...inRegio, ...overig], aantalInRegio: inRegio.length });
 }
+
+/**
+ * POST /api/clubs
+ * Zelfregistratie: iedere ingelogde gebruiker mag een club aanmaken en
+ * wordt daarmee automatisch beheerder (club_admins). De database-
+ * functie `maak_club_met_beheerder` doet beide inserts in één
+ * transactie en bepaalt zelf een unieke slug — de rechten hiervoor
+ * zijn beperkt tot precies deze security-definer-functie, niet tot
+ * brede schrijftoegang op de tabellen zelf.
+ */
+export async function POST(request: NextRequest) {
+  const supabase = await createClient();
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+
+  if (!user) {
+    return NextResponse.json({ error: "Niet ingelogd." }, { status: 401 });
+  }
+
+  const body = await request.json();
+  const naam = body.naam?.trim();
+  const postcode = body.postcode?.trim();
+  const regio = body.regio?.trim();
+  const actiefSpaardoel = body.actief_spaardoel?.trim();
+  const doelbedrag = Number(body.doelbedrag);
+  const logoUrl = body.logo_url?.trim() || null;
+
+  if (!naam || !postcode || !regio || !actiefSpaardoel || !Number.isFinite(doelbedrag) || doelbedrag < 0) {
+    return NextResponse.json({ error: "Vul alle verplichte velden correct in." }, { status: 400 });
+  }
+
+  const { data: club, error } = await supabase
+    .rpc("maak_club_met_beheerder", {
+      p_naam: naam,
+      p_postcode: postcode,
+      p_regio: regio,
+      p_actief_spaardoel: actiefSpaardoel,
+      p_doelbedrag: doelbedrag,
+      p_logo_url: logoUrl,
+    })
+    .single();
+
+  if (error || !club) {
+    return NextResponse.json({ error: error?.message ?? "Kon club niet aanmaken." }, { status: 500 });
+  }
+
+  return NextResponse.json({ club });
+}

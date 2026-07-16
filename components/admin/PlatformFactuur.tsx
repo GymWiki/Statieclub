@@ -58,8 +58,8 @@ export function PlatformFactuur({
         <Receipt className="h-4.5 w-4.5" /> Afrekening platform ({PLATFORM_FEE_PERCENTAGE}% software-fee)
       </h2>
       <p className="mt-1 text-sm text-gray-500">
-        Statieclub rekent {PLATFORM_FEE_PERCENTAGE}% over het totaalbedrag van uitsluitend de door de
-        penningmeester <strong>goedgekeurde</strong> scans. Afgekeurde scans en openstaande vlaggetjes tellen
+        Statieclub rekent {PLATFORM_FEE_PERCENTAGE}% over het totaalbedrag van uitsluitend de <strong>goedgekeurde</strong> scans.
+        Afgekeurde scans en openstaande vlaggetjes tellen
         niet mee. Deze afrekening is onafhankelijk van het moment waarop leden het geld fysiek naar de
         clubkas overmaken.
       </p>

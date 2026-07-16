@@ -11,7 +11,6 @@ export type OphaalverzoekStatus = "open" | "geclaimd" | "ingeleverd" | "voltooid
  * 'ingeleverd', maar dat wordt door de app niet meer geschreven.
  */
 export type BonnetjeStatus = "in_afwachting_controle" | "goedgekeurd" | "afgekeurd";
-export type ClubRol = "penningmeester" | "bestuurslid";
 export type FactuurStatus = "concept" | "verzonden" | "betaald";
 
 export interface Club {
@@ -115,7 +114,6 @@ export interface ClubAdmin {
   id: string;
   club_id: string;
   user_id: string;
-  rol: ClubRol;
   created_at: string;
 }
 

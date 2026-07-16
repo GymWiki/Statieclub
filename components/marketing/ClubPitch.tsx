@@ -109,7 +109,7 @@ export function ClubPitch() {
             <div className="text-center md:text-left">
               <h3 className="font-display text-xl font-bold text-white">Geen administratie</h3>
               <p className="mt-1.5 text-sm text-slate-400">
-                Als penningmeester houd je 100% controle met ons automatische goedkeuringsdashboard.
+                Als bestuurslid houd je 100% controle met ons automatische goedkeuringsdashboard.
               </p>
             </div>
           </motion.div>

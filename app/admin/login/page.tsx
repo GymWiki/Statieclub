@@ -66,9 +66,11 @@ export default function AdminLoginPage() {
       <Card className="p-8">
         <div className="mb-6 text-center">
           <ShieldCheck className="mx-auto h-10 w-10 text-brand-600" />
-          <h1 className="mt-3 text-xl font-bold text-gray-900">Penningmeester-login</h1>
+          <h1 className="mt-3 text-xl font-bold text-gray-900">Clubbeheer</h1>
           <p className="mt-1 text-sm text-gray-500">
-            {modus === "inloggen" ? "Log in met je e-mailadres en wachtwoord." : "Maak een account aan."}
+            {modus === "inloggen"
+              ? "Log in met je e-mailadres en wachtwoord."
+              : "Maak een account aan en beheer direct je eigen club(s)."}
           </p>
         </div>
 
@@ -91,7 +93,7 @@ export default function AdminLoginPage() {
                     className="pl-11"
                     value={email}
                     onChange={(e) => setEmail(e.target.value)}
-                    placeholder="penningmeester@club.nl"
+                    placeholder="jij@club.nl"
                   />
                 </div>
               </div>
