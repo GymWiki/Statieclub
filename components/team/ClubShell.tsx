@@ -1,6 +1,8 @@
 "use client";
 
-import { Repeat } from "lucide-react";
+import { Repeat, Camera } from "lucide-react";
+import Link from "next/link";
+import { usePathname } from "next/navigation";
 import { useTeam } from "@/components/team/TeamContext";
 import { TeamKiezer } from "@/components/team/TeamKiezer";
 import { BottomNav } from "@/components/team/BottomNav";
@@ -15,10 +17,14 @@ export function ClubShell({
   children: React.ReactNode;
 }) {
   const { gekozenTeam, wisselTeam } = useTeam();
+  const pathname = usePathname();
 
   if (!gekozenTeam) {
     return <TeamKiezer clubNaam={clubNaam} />;
   }
+
+  const scanPad = `/club/${clubSlug}/scan-eigen`;
+  const toonScanFab = pathname !== scanPad;
 
   return (
     <div className="min-h-dvh pb-20">
@@ -36,6 +42,16 @@ export function ClubShell({
       </header>
 
       <main>{children}</main>
+
+      {toonScanFab && (
+        <Link
+          href={scanPad}
+          aria-label="Scan eigen statiegeld"
+          className="fixed bottom-20 right-4 z-20 flex h-14 w-14 items-center justify-center rounded-full bg-brand-600 text-white shadow-lg shadow-brand-600/40 transition-transform active:scale-90"
+        >
+          <Camera className="h-6 w-6" />
+        </Link>
+      )}
 
       <BottomNav clubSlug={clubSlug} />
     </div>

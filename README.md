@@ -279,6 +279,10 @@ team-gedeelte los te laten:
   claimen zonder eerst een donateursadres te claimen. Daarom is
   `bonnetjes.ophaalverzoek_id` sinds migratie 0008 nullable; `POST
   /api/bonnetjes` slaat de adres-claim-validatie dan simpelweg over.
+  Toegang gaat via een globale FAB (floating action button,
+  `ClubShell.tsx`) rechtsonder boven de bottom-nav, zichtbaar op elk
+  scherm behalve de scan-pagina zelf — het scorebord toont bewust
+  alleen statistieken, geen actieknoppen.
 - **Streaks**: bijgehouden in `spelers.current_week_streak` /
   `longest_streak`, berekend door de Postgres-functie
   `credit_speler_voor_bonnetje` (aangeroepen vanuit dezelfde

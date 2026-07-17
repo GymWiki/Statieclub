@@ -50,7 +50,6 @@ export default async function LeaderboardPage({ params }: { params: Promise<{ sl
   return (
     <Leaderboard
       clubId={club.id}
-      clubSlug={slug}
       initialTeams={(teams as Team[]) ?? []}
       initialTopSpelers={(topSpelers as Speler[]) ?? []}
       klapperVanDeWeek={klapperVanDeWeek}

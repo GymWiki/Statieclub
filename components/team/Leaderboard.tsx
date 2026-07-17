@@ -1,11 +1,9 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import Link from "next/link";
-import { Medal, PinIcon, Camera, Zap } from "lucide-react";
+import { Medal, Zap } from "lucide-react";
 import { createClient } from "@/lib/supabase/client";
 import { Card } from "@/components/ui/Card";
-import { Button } from "@/components/ui/Button";
 import { AnimatedNumber } from "@/components/ui/AnimatedNumber";
 import { cn, formatEuro } from "@/lib/utils";
 import { useTeam } from "@/components/team/TeamContext";
@@ -21,13 +19,11 @@ export interface KlapperVanDeWeek {
 
 export function Leaderboard({
   clubId,
-  clubSlug,
   initialTeams,
   initialTopSpelers,
   klapperVanDeWeek,
 }: {
   clubId: string;
-  clubSlug: string;
   initialTeams: Team[];
   initialTopSpelers: Speler[];
   klapperVanDeWeek: KlapperVanDeWeek | null;
@@ -74,22 +70,6 @@ export function Leaderboard({
   return (
     <div className="mx-auto max-w-lg space-y-3 p-4">
       <h1 className="text-lg font-bold text-gray-900">Live scorebord</h1>
-
-      <div className="space-y-2">
-        <Link href={`/club/${clubSlug}/scan-eigen`} className="block">
-          <Button
-            size="lg"
-            className="w-full bg-gradient-to-br from-brand-500 to-brand-700 font-bold shadow-lg shadow-brand-500/30"
-          >
-            <Camera className="h-5 w-5" /> 📸 Scan Eigen Statiegeld
-          </Button>
-        </Link>
-        <Link href={`/club/${clubSlug}/prikbord`} className="block">
-          <Button variant="secondary" className="w-full">
-            <PinIcon className="h-4 w-4" /> Ophaal Prikbord
-          </Button>
-        </Link>
-      </div>
 
       {klapperVanDeWeek && (
         <Card className="flex items-center gap-3 border-amber-300 bg-gradient-to-br from-amber-50 to-white p-4">
