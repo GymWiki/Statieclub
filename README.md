@@ -74,6 +74,7 @@ supabase/
   migrations/0006_zelfregistratie_clubs.sql  RPC maak_club_met_beheerder (v1), rol-kolom weg
   migrations/0007_meerdere_doelen_per_club.sql  doelen-tabel, ophaalverzoeken.doel_id, RPC v2 zonder doel
   migrations/0008_gamification.sql  spelers, badges, speler_badges + streak-/badge-logica
+  migrations/0009_badge_engine_uitbreiding.sql  buurt-/snelheids-/verborgen badges, geclaimd_door_speler_id
   seed.sql                        Demodata voor lokale ontwikkeling
 ```
 
@@ -287,17 +288,34 @@ team-gedeelte los te laten:
   vereenvoudiging: het afkeuren van een oud bonnetje trekt wél het
   bedrag/aantal scans terug, maar breekt de streak niet met
   terugwerkende kracht.
-- **Badge-engine** (`lib/badges.ts#evaluateBadges`): een pure
-  applicatiefunctie (geen DB-trigger) die na elk goedgekeurd bonnetje
-  wordt aangeroepen vanuit `POST /api/bonnetjes` en `PATCH
-  /api/bonnetjes/[id]/verify`. Ze leest de actuele speler-stand + de nog
-  niet ontgrendelde badges uit `badges`, toetst het `criteria_type`
-  (`eerste_scan`, `enkele_scan_euro`, `totaal_euro`, `aantal_scans`,
-  `week_streak`) en schrijft nieuwe rijen naar `speler_badges`. Minimaal
-  12 badges zijn geseed in migratie 0008, verdeeld over de categorieën
-  Volume/Streak/Actie. Nieuwe badge-soorten toevoegen is een rij in
-  `badges` — geen migratie voor de logica zelf nodig, tenzij het om een
-  echt nieuw criterium-type gaat.
+- **Badge-engine** (`lib/badges.ts`): pure applicatiefuncties (geen
+  DB-trigger), met een gedeelde kern (`ontgrendelBadges`) en twee
+  aanroeppunten die elk hun eigen "moment" hebben:
+  - `evaluateBadges(spelerId, nieuwScanBedrag)` — ná een goedgekeurd
+    bonnetje, aangeroepen vanuit `POST /api/bonnetjes` en `PATCH
+    /api/bonnetjes/[id]/verify`. Dekt `eerste_scan`, `enkele_scan_euro`,
+    `exact_bedrag` (verborgen "easter egg"-badges als "Precies Goed"
+    €1,00 en "Lucky Number" €7,77), `totaal_euro`, `aantal_scans`,
+    `week_streak` én `aantal_claims` (want dit is ook het moment waarop
+    een ophaalverzoek naar `voltooid` gaat).
+  - `evaluateClaimBadges(spelerId, aangemaaktOp)` — direct ná het
+    claimen van een adres (`POST /api/ophaalverzoeken/[id]/claim`),
+    voor `snelle_claim` ("Snelle Service": binnen X minuten na
+    aanmaken geclaimd — de badge zelf bepaalt X via `criteria_waarde`).
+  - `aantal_claims` telt `ophaalverzoeken` met
+    `geclaimd_door_speler_id = spelerId AND status = 'voltooid'` — een
+    losse kolom naast het bestaande `geclaimd_door_team_id`, puur voor
+    persoonlijke buurt-badges ("De Buurtverkenner", "Wijkagent",
+    "Burgemeester van de Straat"), toegevoegd in migratie 0009.
+  - Beide functies schrijven nieuw ontgrendelde badges naar
+    `speler_badges` en geven ze terug zodat de UI een toast kan tonen.
+  - **Verborgen badges** (`badges.verborgen`): naam/icoon/beschrijving
+    blijven in de UI een "??? — Geheime badge"-mysterie totdat de
+    speler ze daadwerkelijk ontgrendelt (`BadgesGrid.tsx#isMysterie`).
+  - 20 badges zijn geseed (migratie 0008 + 0009), verdeeld over de
+    categorieën Volume/Streak/Actie. Nieuwe badge-soorten toevoegen is
+    een rij in `badges` — geen migratie voor de logica zelf nodig,
+    tenzij het om een echt nieuw criterium-type gaat.
 - **Profiel** (`/club/[slug]/profiel`, `Profiel.tsx`): avatar-picker,
   totaal opgehaald + aantal scans, een "Jouw impact"-vertaling
   (`lib/impact.ts#berekenImpact`, €15 per trainingsbal — puur ter

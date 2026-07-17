@@ -12,6 +12,11 @@ import type { BadgeMetStatus } from "@/lib/types";
  * de ontgrendel-criteria — geen aparte modal-library nodig, gewoon een
  * uitklap-paneel onder de grid.
  */
+/** Verborgen ("easter egg") badges tonen geen naam/icoon/criteria totdat ze ontgrendeld zijn. */
+function isMysterie(badge: BadgeMetStatus): boolean {
+  return badge.verborgen && !badge.ontgrendeld;
+}
+
 export function BadgesGrid({ badges }: { badges: BadgeMetStatus[] }) {
   const [geselecteerd, setGeselecteerd] = useState<BadgeMetStatus | null>(null);
 
@@ -47,7 +52,7 @@ export function BadgesGrid({ badges }: { badges: BadgeMetStatus[] }) {
                 badge.ontgrendeld ? "text-gray-800" : "text-gray-400"
               )}
             >
-              {badge.naam}
+              {isMysterie(badge) ? "???" : badge.naam}
             </p>
           </button>
         ))}
@@ -55,20 +60,44 @@ export function BadgesGrid({ badges }: { badges: BadgeMetStatus[] }) {
 
       {geselecteerd && (
         <div className="rounded-xl border border-gray-200 bg-white p-3.5">
-          <div className="flex items-center gap-2.5">
-            <span className="text-2xl">{geselecteerd.ontgrendeld ? geselecteerd.icoon : "🔒"}</span>
-            <div>
-              <p className="font-bold text-gray-900">{geselecteerd.naam}</p>
-              <p className="text-xs uppercase tracking-wide text-gray-400">{geselecteerd.categorie}</p>
-            </div>
-          </div>
-          <p className="mt-2 text-sm text-gray-600">{geselecteerd.beschrijving}</p>
-          {geselecteerd.ontgrendeld && geselecteerd.unlocked_at ? (
-            <p className="mt-1 text-xs font-medium text-brand-600">
-              Ontgrendeld op {new Date(geselecteerd.unlocked_at).toLocaleDateString("nl-NL")}
-            </p>
+          {isMysterie(geselecteerd) ? (
+            <>
+              <div className="flex items-center gap-2.5">
+                <span className="text-2xl">🔒</span>
+                <div>
+                  <p className="font-bold text-gray-900">??? — Geheime badge</p>
+                  <p className="text-xs uppercase tracking-wide text-gray-400">{geselecteerd.categorie}</p>
+                </div>
+              </div>
+              <p className="mt-2 text-sm text-gray-500">
+                Deze badge houdt zijn geheim tot je hem ontgrendelt. Blijf scannen om erachter te komen!
+              </p>
+            </>
           ) : (
-            <p className="mt-1 text-xs text-gray-400">Nog niet ontgrendeld</p>
+            <>
+              <div className="flex items-center gap-2.5">
+                <span className="text-2xl">{geselecteerd.ontgrendeld ? geselecteerd.icoon : "🔒"}</span>
+                <div>
+                  <p className="flex items-center gap-1.5 font-bold text-gray-900">
+                    {geselecteerd.naam}
+                    {geselecteerd.verborgen && (
+                      <span className="rounded-full bg-amber-100 px-1.5 py-0.5 text-[10px] font-semibold text-amber-700">
+                        Geheime badge
+                      </span>
+                    )}
+                  </p>
+                  <p className="text-xs uppercase tracking-wide text-gray-400">{geselecteerd.categorie}</p>
+                </div>
+              </div>
+              <p className="mt-2 text-sm text-gray-600">{geselecteerd.beschrijving}</p>
+              {geselecteerd.ontgrendeld && geselecteerd.unlocked_at ? (
+                <p className="mt-1 text-xs font-medium text-brand-600">
+                  Ontgrendeld op {new Date(geselecteerd.unlocked_at).toLocaleDateString("nl-NL")}
+                </p>
+              ) : (
+                <p className="mt-1 text-xs text-gray-400">Nog niet ontgrendeld</p>
+              )}
+            </>
           )}
         </div>
       )}

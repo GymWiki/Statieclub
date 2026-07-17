@@ -64,6 +64,8 @@ export interface Ophaalverzoek {
   club_id: string;
   doel_id: string | null;
   geclaimd_door_team_id: string | null;
+  /** Losstaand van geclaimd_door_team_id — puur voor persoonlijke buurt-badges. */
+  geclaimd_door_speler_id: string | null;
   status: OphaalverzoekStatus;
   aantal_geschat: number;
   opmerking: string | null;
@@ -122,9 +124,12 @@ export type BadgeCategorie = "Volume" | "Streak" | "Actie";
 export type BadgeCriteriaType =
   | "eerste_scan"
   | "enkele_scan_euro"
+  | "exact_bedrag"
   | "totaal_euro"
   | "aantal_scans"
-  | "week_streak";
+  | "week_streak"
+  | "aantal_claims"
+  | "snelle_claim";
 
 export interface Speler {
   id: string;
@@ -150,6 +155,8 @@ export interface Badge {
   criteria_type: BadgeCriteriaType;
   criteria_waarde: number | null;
   volgorde: number;
+  /** "Easter egg": naam/icoon/beschrijving blijven verborgen totdat de speler hem ontgrendelt. */
+  verborgen: boolean;
   created_at: string;
 }
 

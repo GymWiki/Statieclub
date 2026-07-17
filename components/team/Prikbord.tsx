@@ -7,9 +7,10 @@ import { createClient } from "@/lib/supabase/client";
 import { Card } from "@/components/ui/Card";
 import { Button } from "@/components/ui/Button";
 import { StatusBadge } from "@/components/ui/Badge";
+import { NieuweBadgeToasts } from "@/components/ui/BadgeToast";
 import { useTeam } from "@/components/team/TeamContext";
 import { bouwWhatsappUrl } from "@/lib/utils";
-import type { OphaalverzoekPrikbord } from "@/lib/types";
+import type { Badge, OphaalverzoekPrikbord } from "@/lib/types";
 
 interface GeclaimdAdres {
   id: string;
@@ -20,12 +21,13 @@ interface GeclaimdAdres {
 }
 
 export function Prikbord({ clubId, clubSlug, clubNaam }: { clubId: string; clubSlug: string; clubNaam: string }) {
-  const { gekozenTeam, spelerNaam } = useTeam();
+  const { gekozenTeam, spelerNaam, spelerId } = useTeam();
   const [verzoeken, setVerzoeken] = useState<OphaalverzoekPrikbord[]>([]);
   const [geclaimd, setGeclaimd] = useState<Record<string, GeclaimdAdres>>({});
   const [ladend, setLadend] = useState(true);
   const [claimBezig, setClaimBezig] = useState<string | null>(null);
   const [foutmelding, setFoutmelding] = useState<string | null>(null);
+  const [nieuweBadges, setNieuweBadges] = useState<Badge[]>([]);
 
   const laadVerzoeken = useCallback(async () => {
     const supabase = createClient();
@@ -85,7 +87,7 @@ export function Prikbord({ clubId, clubSlug, clubNaam }: { clubId: string; clubS
       const res = await fetch(`/api/ophaalverzoeken/${id}/claim`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ team_id: gekozenTeam.id }),
+        body: JSON.stringify({ team_id: gekozenTeam.id, speler_id: spelerId || null }),
       });
       const json = await res.json();
 
@@ -106,6 +108,7 @@ export function Prikbord({ clubId, clubSlug, clubNaam }: { clubId: string; clubS
           donateur_telefoonnummer: o.donateurs.telefoonnummer,
         },
       }));
+      if (json.nieuweBadges?.length > 0) setNieuweBadges(json.nieuweBadges);
       await laadVerzoeken();
     } finally {
       setClaimBezig(null);
@@ -114,6 +117,7 @@ export function Prikbord({ clubId, clubSlug, clubNaam }: { clubId: string; clubS
 
   return (
     <div className="mx-auto max-w-lg space-y-3 p-4">
+      {nieuweBadges.length > 0 && <NieuweBadgeToasts badges={nieuweBadges} />}
       <h1 className="text-lg font-bold text-gray-900">Ophaal prikbord</h1>
       <p className="text-sm text-gray-500">Claim een adres om flessen bij donateurs op te halen.</p>
 
