@@ -89,12 +89,15 @@ export interface OphaalverzoekPrikbord {
   aangemaakt_op: string;
 }
 
-/** Volledig verzoek + adres, alleen server-side opgehaald na claim. */
+/**
+ * Volledig verzoek + adres, alleen server-side opgehaald na claim.
+ * Bewust geen telefoonnummer: contact loopt via het anonieme
+ * chatsysteem, niet via 06-nummers.
+ */
 export interface OphaalverzoekMetAdres extends Ophaalverzoek {
   donateur_naam: string;
   donateur_adres: string;
   donateur_postcode: string;
-  donateur_telefoonnummer: string | null;
 }
 
 /**
@@ -113,6 +116,20 @@ export interface OphaalverzoekNearby {
   postcode_cijfers: string;
   afstand_meters: number | null;
   fuzzy_locatie: { lat: number; lng: number } | null;
+}
+
+// ─────────────────────────────────────────────────────────────
+// Anoniem chatsysteem (speler ↔ donateur, per ophaalverzoek)
+// ─────────────────────────────────────────────────────────────
+
+export type BerichtAfzenderType = "speler" | "donateur" | "systeem";
+
+export interface Bericht {
+  id: string;
+  ophaalverzoek_id: string;
+  afzender_type: BerichtAfzenderType;
+  bericht_tekst: string;
+  aangemaakt_op: string;
 }
 
 export interface Bonnetje {

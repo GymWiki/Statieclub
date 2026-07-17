@@ -42,11 +42,23 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
     );
   }
 
+  // telefoonnummer zit hier bewust niet in: contact loopt sinds het
+  // anonieme chatsysteem uitsluitend via de chat, geen 06-nummers meer.
   const { data: metAdres } = await supabase
     .from("ophaalverzoeken")
-    .select("*, donateurs(naam, adres, postcode, telefoonnummer)")
+    .select("*, donateurs(naam, adres, postcode)")
     .eq("id", id)
     .single();
+
+  // Automatisch systeembericht in de gedeelde chat-thread — zichtbaar
+  // voor zowel de speler (in de app) als de donateur (op de status-
+  // pagina), dus bewust neutraal/derde-persoon geformuleerd i.p.v.
+  // "je hebt geclaimd" (dat zou voor de donateur verwarrend lezen).
+  await supabase.from("berichten").insert({
+    ophaalverzoek_id: id,
+    afzender_type: "systeem",
+    bericht_tekst: "Een team heeft deze rit geclaimd — de bewoner is op de hoogte gebracht.",
+  });
 
   const nieuweBadges = speler_id ? await evaluateClaimBadges(speler_id, updated.aangemaakt_op) : [];
 

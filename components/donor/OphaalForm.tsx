@@ -1,7 +1,8 @@
 "use client";
 
 import { FormEvent, useEffect, useState } from "react";
-import { CheckCircle2, Loader2, PackageOpen } from "lucide-react";
+import Link from "next/link";
+import { CheckCircle2, Loader2, MessageCircleMore, PackageOpen } from "lucide-react";
 import { Button } from "@/components/ui/Button";
 import { Input, Label } from "@/components/ui/Input";
 import { Card } from "@/components/ui/Card";
@@ -22,6 +23,7 @@ export function OphaalForm({ clubId, clubNaam, doelen }: { clubId: string; clubN
   const [status, setStatus] = useState<"idle" | "versturen" | "verzonden" | "fout">("idle");
   const [foutmelding, setFoutmelding] = useState<string | null>(null);
   const [locatie, setLocatie] = useState<{ lat: number; lng: number } | null>(null);
+  const [ophaalverzoekId, setOphaalverzoekId] = useState<string | null>(null);
 
   useEffect(() => {
     const profiel = laadDonorProfiel();
@@ -80,6 +82,7 @@ export function OphaalForm({ clubId, clubNaam, doelen }: { clubId: string; clubN
       }
 
       bewaarDonorProfiel(json.donateurProfiel);
+      setOphaalverzoekId(json.ophaalverzoek.id);
       setStatus("verzonden");
     } catch {
       setFoutmelding("Kon geen verbinding maken. Probeer het opnieuw.");
@@ -95,6 +98,19 @@ export function OphaalForm({ clubId, clubNaam, doelen }: { clubId: string; clubN
         <p className="text-gray-600">
           Je ophaalverzoek staat op het prikbord. Een team komt binnenkort je flessen ophalen.
         </p>
+        {ophaalverzoekId && (
+          <>
+            <p className="text-sm text-gray-500">
+              Bewaar deze link — hierop zie je de status en kun je (anoniem, zonder telefoonnummers uit te
+              wisselen) chatten met het team.
+            </p>
+            <Link href={`/status/${ophaalverzoekId}`} className="w-full">
+              <Button variant="secondary" className="w-full">
+                <MessageCircleMore className="h-4 w-4" /> Bekijk status &amp; chat
+              </Button>
+            </Link>
+          </>
+        )}
       </Card>
     );
   }

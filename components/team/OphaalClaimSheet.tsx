@@ -4,14 +4,12 @@ import Link from "next/link";
 import { Check, Loader2, MapPin, MessageCircleMore, Package, Camera, AlertTriangle } from "lucide-react";
 import { Button } from "@/components/ui/Button";
 import { formatAfstand } from "@/lib/geo";
-import { bouwWhatsappUrl } from "@/lib/utils";
 import type { OphaalverzoekNearby } from "@/lib/types";
 
 export interface GeclaimdAdres {
   donateur_naam: string;
   donateur_adres: string;
   donateur_postcode: string;
-  donateur_telefoonnummer: string | null;
   opmerking: string | null;
 }
 
@@ -20,8 +18,8 @@ export interface GeclaimdAdres {
  * geanonimiseerd prikbord-item verandert in een concreet adres. Zolang
  * `geclaimdAdres` er niet is, ziet de speler enkel wat het prikbord al
  * toonde (afstand/postcode/aantal) — pas na een geslaagde `onClaim()`
- * komt het adres, de opmerking van de donateur en de WhatsApp-knop in
- * beeld.
+ * komt het adres, de opmerking van de donateur en de link naar de
+ * anonieme chat in beeld (géén telefoonnummers/WhatsApp meer).
  */
 export function OphaalClaimSheet({
   item,
@@ -31,9 +29,6 @@ export function OphaalClaimSheet({
   foutmelding,
   onClaim,
   clubSlug,
-  clubNaam,
-  spelerNaam,
-  teamNaam,
 }: {
   item: OphaalverzoekNearby;
   jouwClaim: boolean;
@@ -42,9 +37,6 @@ export function OphaalClaimSheet({
   foutmelding: string | null;
   onClaim: () => void;
   clubSlug: string;
-  clubNaam: string;
-  spelerNaam: string;
-  teamNaam: string;
 }) {
   // Al door een ander team geclaimd: nooit het adres proberen op te halen.
   if (item.status === "geclaimd" && !jouwClaim) {
@@ -72,11 +64,9 @@ export function OphaalClaimSheet({
   }
 
   // Ná een geslaagde claim: het echte adres, de opmerking van de
-  // donateur en de WhatsApp-snelkoppeling.
+  // donateur en de link naar de anonieme chat — geen telefoonnummer
+  // wordt hier meer als contactmiddel aangeboden.
   if (geclaimdAdres) {
-    const whatsappTekst = `Hoi! Ik ben ${spelerNaam || "een teamlid"} van team ${teamNaam} en ik kom zo de statiegeldflessen ophalen voor ${clubNaam}!`;
-    const whatsappUrl = bouwWhatsappUrl(geclaimdAdres.donateur_telefoonnummer, whatsappTekst);
-
     return (
       <div className="space-y-4">
         <div className="flex items-start gap-2">
@@ -86,9 +76,6 @@ export function OphaalClaimSheet({
             <p className="text-gray-700">
               {geclaimdAdres.donateur_adres}, {geclaimdAdres.donateur_postcode}
             </p>
-            {geclaimdAdres.donateur_telefoonnummer && (
-              <p className="text-gray-500">{geclaimdAdres.donateur_telefoonnummer}</p>
-            )}
           </div>
         </div>
 
@@ -99,11 +86,11 @@ export function OphaalClaimSheet({
         )}
 
         <div className="flex gap-2">
-          <a href={whatsappUrl} target="_blank" rel="noreferrer" className="flex-1">
-            <Button size="sm" className="w-full bg-[#25D366] hover:bg-[#1ebe57]">
-              <MessageCircleMore className="h-4 w-4" /> Stuur bericht naar bewoner
+          <Link href={`/club/${clubSlug}/rit/${item.id}/chat`} className="flex-1">
+            <Button size="sm" className="w-full">
+              <MessageCircleMore className="h-4 w-4" /> Chat met bewoner
             </Button>
-          </a>
+          </Link>
           <Link href={`/club/${clubSlug}/upload?verzoek=${item.id}`} className="flex-1">
             <Button size="sm" variant="secondary" className="w-full">
               <Camera className="h-4 w-4" /> Bonnetje uploaden

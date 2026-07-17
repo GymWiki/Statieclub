@@ -7,8 +7,8 @@ export default async function PrikbordPage({ params }: { params: Promise<{ slug:
   const { slug } = await params;
   const supabase = await createClient();
 
-  const { data: club } = await supabase.from("clubs").select("id, naam").eq("slug", slug).single<Pick<Club, "id" | "naam">>();
+  const { data: club } = await supabase.from("clubs").select("id").eq("slug", slug).single<Pick<Club, "id">>();
   if (!club) notFound();
 
-  return <Prikbord clubId={club.id} clubSlug={slug} clubNaam={club.naam} />;
+  return <Prikbord clubId={club.id} clubSlug={slug} />;
 }

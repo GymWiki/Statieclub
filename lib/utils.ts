@@ -107,6 +107,22 @@ export function bouwWhatsappUrl(telefoonnummer: string | null | undefined, tekst
   return `${basis}?text=${encodeURIComponent(tekst)}`;
 }
 
+// ─────────────────────────────────────────────────────────────
+// Anoniem chatsysteem (speler ↔ donateur)
+// ─────────────────────────────────────────────────────────────
+
+/**
+ * Bepaalt of de chat van een ophaalverzoek gesloten moet zijn. 'voltooid'
+ * is de enige afgeronde status die de app vandaag daadwerkelijk zet;
+ * 'geannuleerd' bestaat nog niet als status in het schema (er is geen
+ * annuleer-functionaliteit), maar wordt hier alvast defensief
+ * meegenomen zodat een toekomstige annuleer-feature de chat automatisch
+ * laat sluiten zonder dat deze functie hoeft te veranderen.
+ */
+export function chatIsGesloten(status: string): boolean {
+  return status === "voltooid" || status === "geannuleerd";
+}
+
 export function statusLabel(status: string): string {
   const labels: Record<string, string> = {
     open: "Open",

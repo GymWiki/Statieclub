@@ -5,7 +5,9 @@ import { createServiceRoleClient } from "@/lib/supabase/server";
  * GET /api/ophaalverzoeken/[id]
  * Geeft het volledige adres alleen terug wanneer het verzoek al
  * geclaimd is — vóór het claimen mag een team enkel de geanonimiseerde
- * prikbord-gegevens (postcode-cijfers) zien.
+ * prikbord-gegevens (postcode-cijfers) zien. `telefoonnummer` zit hier
+ * bewust niet meer in: contact loopt sinds het anonieme chatsysteem
+ * uitsluitend via `/club/[slug]/rit/[id]/chat`, geen 06-nummers meer.
  */
 export async function GET(_request: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   const { id } = await params;
@@ -13,7 +15,7 @@ export async function GET(_request: NextRequest, { params }: { params: Promise<{
 
   const { data, error } = await supabase
     .from("ophaalverzoeken")
-    .select("*, donateurs(naam, adres, postcode, telefoonnummer)")
+    .select("*, donateurs(naam, adres, postcode)")
     .eq("id", id)
     .single();
 

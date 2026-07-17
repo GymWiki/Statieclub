@@ -14,8 +14,8 @@ via een live, gegamificeerd leaderboard om de meeste flessen op te halen.
 
 | Rol | Binnenkomst | Kernroutes |
 |---|---|---|
-| **Aanbieder** (buurtbewoner, geen account) | `/` (marketing) → `/donateren` (postcode) | `/clubs/[slug]` — thermometer + frictieloos ophaalformulier |
-| **Clublid** (lichte teamkeuze, geen account) | `/` (marketing) → `/speler` (kies club) → `/club/[slug]` (kies team + naam) | `/club/[slug]/leaderboard` (scorebord + MVP's + Klapper van de Week), `/club/[slug]/prikbord` (claim + **WhatsApp-knop**), `/club/[slug]/upload` (OCR-scanner, adres-gebonden), `/club/[slug]/scan-eigen` (**Scan Eigen Statiegeld**, zonder adres — via de FAB), `/club/[slug]/profiel` (persoonlijke stats, streak, badges) |
+| **Aanbieder** (buurtbewoner, geen account) | `/` (marketing) → `/donateren` (postcode) | `/clubs/[slug]` — thermometer + frictieloos ophaalformulier; na indienen een link naar `/status/[ophaalverzoekId]` (status + anonieme chat) |
+| **Clublid** (lichte teamkeuze, geen account) | `/` (marketing) → `/speler` (kies club) → `/club/[slug]` (kies team + naam) | `/club/[slug]/leaderboard` (scorebord + MVP's + Klapper van de Week), `/club/[slug]/prikbord` (claim-flow), `/club/[slug]/rit/[id]/chat` (anonieme chat met de donateur), `/club/[slug]/upload` (OCR-scanner, adres-gebonden), `/club/[slug]/scan-eigen` (**Scan Eigen Statiegeld**, zonder adres — via de FAB), `/club/[slug]/profiel` (persoonlijke stats, streak, badges) |
 | **Beheerder** (echt account, e-mail+wachtwoord) | `/` (marketing) → `/admin/login` → `/admin` | `/admin/[slug]` (dashboard), `/admin/[slug]/controle` (anomaly-verificatie), `/admin/[slug]/campagne-beheer` (teams + uitnodigingslinks) |
 
 Bewuste keuzes t.o.v. een 1-op-1 "ideale" routenaamgeving: de donor-flow
@@ -59,9 +59,11 @@ app/
   donateren/page.tsx              Functionele donor-flow (postcode + live clubgrid, met ?postcode=)
   clubs/[slug]/page.tsx           Club-detail + ophaalformulier (donor)
   speler/page.tsx                 Generieke club-zoekpagina voor "Inloggen als Speler"
+  status/[ophaalverzoekId]/       Donateur "magic link"-statuspagina + anonieme chat
   club/[slug]/layout.tsx          Mobiele shell voor teamleden (teamkeuze + bottom nav)
   club/[slug]/leaderboard/        Live scorebord + persoonlijke topscorers + Klapper van de Week
   club/[slug]/prikbord/           Ophaal Prikbord (lijst/kaart-toggle, privacy-veilige claim-flow)
+  club/[slug]/rit/[id]/chat/      Speler-kant van de anonieme chat met de donateur
   club/[slug]/upload/             Hybride OCR Bonnetjes Scanner (ReceiptScanner), adres-gebonden
   club/[slug]/scan-eigen/         Scan Eigen Statiegeld — zelfde scanner, zonder geclaimd adres
   club/[slug]/profiel/            Persoonlijk profiel: impact-stats, streak-meter, badge-showcase
@@ -76,16 +78,17 @@ app/
 
 components/
   marketing/                      Landingspagina-secties (Nav, Hero, ActivityTicker, RoleSelector, HowItWorks, ClubPitch, Faq, Footer)
-  ui/                             Generieke UI-bouwstenen (Button, Card, ProgressBar, ...)
+  ui/                             Generieke UI-bouwstenen (Button, Card, ProgressBar, BottomSheet, ...)
+  chat/                           ChatWindow — gedeeld door speler- en donateur-kant van de anonieme chat
   donor/                          Donor-dashboard componenten
-  team/                           Club/team mobiele-view componenten (incl. WhatsApp-claimknop)
+  team/                           Club/team mobiele-view componenten (Prikbord, PrikbordLijst/Kaart, OphaalClaimSheet)
   admin/                          Clubbeheer-componenten (dashboard, controle, campagnebeheer)
 
 lib/
   supabase/                       Browser-, server- en service-role Supabase clients
   adminAuth.ts                    Gedeelde "is deze gebruiker beheerder van deze club"-check
   types.ts                        TypeScript-types die 1-op-1 het DB-schema volgen
-  utils.ts                        Formatting, puntenberekening, anomaly-detection-regels, WhatsApp-URL-builder
+  utils.ts                        Formatting, puntenberekening, anomaly-detection-regels, WhatsApp-URL-builder, chatIsGesloten
   ocr.ts                          Client-side "OCR-engine" (gesimuleerd) + regex-extractie
   geo.ts                          Haversine-afstand, fuzzy-coördinaat, 2D-projectie (Ophaal Prikbord)
   impact.ts                       Euro → tastbaar object-vertaling (Profiel "Jouw impact")
@@ -105,6 +108,7 @@ supabase/
   migrations/0008_gamification.sql  spelers, badges, speler_badges + streak-/badge-logica
   migrations/0009_badge_engine_uitbreiding.sql  buurt-/snelheids-/verborgen badges, geclaimd_door_speler_id
   migrations/0010_geolocatie_prikbord.sql  donateurs.lat/lng voor afstand + fuzzy kaartweergave
+  migrations/0011_anoniem_chatsysteem.sql  berichten-tabel (speler ↔ donateur per ophaalverzoek)
   seed.sql                        Demodata voor lokale ontwikkeling
 ```
 
@@ -267,9 +271,13 @@ data-fetch duurt.
   publiek leesbaar (landingspagina, live leaderboard, badge-showcase —
   allemaal zonder login). Schrijven op `spelers`/`speler_badges` gaat
   ook hier uitsluitend via route handlers met de service-role key.
-- `donateurs`, `ophaalverzoeken` en `bonnetjes` hebben **geen**
-  publieke policies: alleen route handlers met de **service-role key**
-  mogen hier direct bij. De browser komt hier nooit rechtstreeks aan.
+- `donateurs`, `ophaalverzoeken`, `bonnetjes` en `berichten` hebben
+  **geen** publieke policies: alleen route handlers met de
+  **service-role key** mogen hier direct bij. De browser komt hier
+  nooit rechtstreeks aan. Voor `berichten` is dat een bewuste keuze
+  (geen "using (true)"-policy): zonder `auth.uid()` om een rij-conditie
+  op te hangen zou een publieke policy de hele chat-tabel voor iedereen
+  leesbaar maken, niet enkel het ene gesprek waarvan je de link kent.
 - Het **Ophaal Prikbord** haalt zijn data op via `GET
   /api/ophaalverzoeken/nearby` (zie "Privacy-veilig prikbord" hieronder),
   dat bewust alleen niet-privacygevoelige velden teruggeeft (afstand,
@@ -475,23 +483,55 @@ instructie welk team te kiezen. Er is bewust geen los invite-token-
 systeem: teamleden hebben toch al geen account (zie hieronder), dus de
 link is puur een snelkoppeling naar de bestaande teamkeuze-flow.
 
-### WhatsApp-integratie bij het claimen (Ophaal Prikbord)
+### Anoniem chatsysteem (speler ↔ donateur)
 
-Zodra een team een adres claimt op `/club/[slug]/prikbord`, verschijnt
-naast "Bonnetje uploaden" een groene knop die een `wa.me`-link opent
-met een vooraf ingevuld bericht: *"Hoi! Ik ben [naam] van team [team]
-en ik kom zo de statiegeldflessen ophalen voor [club]!"*. Is het
-telefoonnummer van de donateur bekend, dan opent de link direct een
-chat mét die donateur (`lib/utils.ts#naarWhatsappNummer` normaliseert
-NL-nummers naar het `31...`-formaat dat wa.me verwacht); zonder nummer
-valt hij terug op een generieke share-link. De `[naam]` komt uit een
-kleine uitbreiding van de bestaande lichte teamkeuze: bij het kiezen
-van een team wordt nu ook eenmalig de eigen voornaam gevraagd
-(`TeamKiezer.tsx`, opgeslagen naast de teamkeuze in `localStorage` —
-zie "Beveiliging" hieronder voor de vertrouwensgrens van dit model).
-Na een paginaverversing wordt het donateuradres (en dus het
-telefoonnummer) opnieuw opgehaald via `GET /api/ophaalverzoeken/[id]`
-zodat de knop ook dan blijft werken, niet alleen direct na het claimen.
+Contact na het claimen loopt niet meer via WhatsApp/telefoonnummers,
+maar via een ingebouwd, anoniem chatsysteem — geen van beide partijen
+ziet ooit het telefoonnummer van de ander. Eén tabel, geen aparte
+chat-sessie-laag: `berichten` (migratie 0011) hangt met
+`ophaalverzoek_id` direct aan het ophaalverzoek, want er is precies
+één gesprek per verzoek.
+
+- **`ChatWindow`** (`components/chat/ChatWindow.tsx`) is de gedeelde
+  UI voor beide kanten — enkel de `afzenderType`-prop ("speler" of
+  "donateur") verschilt, de rest van het gedrag (bubbels, systeem-
+  berichten, input) is identiek. "Realtime" is bewust korte polling
+  (elke 2,5s) via `GET /api/berichten`, niet een Supabase Realtime
+  subscription: dat laatste vereist een publieke SELECT-policy, en
+  zonder `auth.uid()` om een rij-conditie op te hangen zou dat de hele
+  tabel voor iedereen leesbaar maken — zelfde afweging als bij het
+  Ophaal Prikbord hierboven.
+- **Speler-kant** (`/club/[slug]/rit/[ophaalverzoekId]/chat`): bereikbaar
+  via de "Chat met bewoner"-knop die na een claim verschijnt in
+  `OphaalClaimSheet.tsx` (verving daar de oude WhatsApp-knop).
+- **Donateur-kant — de "magic link"** (`/status/[ophaalverzoekId]`):
+  een publieke, geen-account-nodig statuspagina. Het ophaalverzoek-id
+  zelf (een niet-raadbare UUID) is het gedeelde geheim — zelfde
+  vertrouwensmodel als de bestaande `GET /api/ophaalverzoeken/[id]`
+  die na een claim ook al zonder account het adres toont. De donateur
+  krijgt deze link direct op het bevestigingsscherm van het
+  ophaalformulier (`OphaalForm.tsx`) na het indienen.
+- **Systeemberichten**: `POST /api/ophaalverzoeken/[id]/claim` voegt
+  automatisch een `afzender_type: 'systeem'`-bericht toe zodra een
+  team claimt ("Een team heeft deze rit geclaimd — de bewoner is op de
+  hoogte gebracht") — bewust neutraal/derde-persoon geformuleerd omdat
+  beide partijen dezelfde chat-thread zien. `POST /api/berichten`
+  (het generieke endpoint voor speler-/donateur-berichten) weigert
+  zelf `afzender_type: 'systeem'` — dat mag alleen server-side vanuit
+  andere route handlers ontstaan, nooit op verzoek van de client.
+- **Auto-sluiten** (`lib/utils.ts#chatIsGesloten`): zodra
+  `ophaalverzoeken.status` op `'voltooid'` staat, blokkeert
+  `ChatWindow` het invoerveld en toont "Deze ophaalactie is afgerond.
+  De chat is gesloten." De check ondersteunt ook `'geannuleerd'`,
+  hoewel die status vandaag nog niet bestaat in het schema (er is geen
+  annuleer-functionaliteit) — zo hoeft een toekomstige annuleer-feature
+  deze functie niet aan te passen.
+- `donateurs.telefoonnummer` wordt sindsdien bewust niet meer
+  meegegeven in de server-responses richting de speler (`GET
+  /api/ophaalverzoeken/[id]` en de claim-route selecteren het simpelweg
+  niet meer) — het veld blijft wel bestaan op het ophaalformulier voor
+  eventueel toekomstig/administratief gebruik, maar bereikt de
+  speler-UI niet langer.
 
 ## Lokaal draaien
 

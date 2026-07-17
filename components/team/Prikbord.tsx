@@ -23,8 +23,8 @@ type Weergave = "lijst" | "kaart";
  * ("fuzzy") coördinaat teruggeeft. Zie components/team/OphaalClaimSheet
  * voor het enige moment waarop dat verandert.
  */
-export function Prikbord({ clubId, clubSlug, clubNaam }: { clubId: string; clubSlug: string; clubNaam: string }) {
-  const { gekozenTeam, spelerNaam, spelerId } = useTeam();
+export function Prikbord({ clubId, clubSlug }: { clubId: string; clubSlug: string }) {
+  const { gekozenTeam, spelerId } = useTeam();
 
   const [weergave, setWeergave] = useState<Weergave>("lijst");
   const [verzoeken, setVerzoeken] = useState<OphaalverzoekNearby[]>([]);
@@ -102,7 +102,6 @@ export function Prikbord({ clubId, clubSlug, clubNaam }: { clubId: string; clubS
             donateur_naam: o.donateurs.naam,
             donateur_adres: o.donateurs.adres,
             donateur_postcode: o.donateurs.postcode,
-            donateur_telefoonnummer: o.donateurs.telefoonnummer,
             opmerking: o.opmerking,
           },
         }));
@@ -136,7 +135,6 @@ export function Prikbord({ clubId, clubSlug, clubNaam }: { clubId: string; clubS
           donateur_naam: o.donateurs.naam,
           donateur_adres: o.donateurs.adres,
           donateur_postcode: o.donateurs.postcode,
-          donateur_telefoonnummer: o.donateurs.telefoonnummer,
           opmerking: o.opmerking,
         },
       }));
@@ -199,9 +197,6 @@ export function Prikbord({ clubId, clubSlug, clubNaam }: { clubId: string; clubS
             foutmelding={foutmelding}
             onClaim={() => claim(geselecteerd.id)}
             clubSlug={clubSlug}
-            clubNaam={clubNaam}
-            spelerNaam={spelerNaam}
-            teamNaam={gekozenTeam.team_naam}
           />
         )}
       </BottomSheet>
