@@ -1,44 +1,77 @@
 "use client";
 
 import { useCallback, useEffect, useState } from "react";
-import { MapPin, Package, Loader2, Camera, MessageCircleMore } from "lucide-react";
-import Link from "next/link";
-import { createClient } from "@/lib/supabase/client";
-import { Card } from "@/components/ui/Card";
-import { Button } from "@/components/ui/Button";
-import { StatusBadge } from "@/components/ui/Badge";
+import { List, Map as MapIcon, Loader2 } from "lucide-react";
+import { BottomSheet } from "@/components/ui/BottomSheet";
 import { NieuweBadgeToasts } from "@/components/ui/BadgeToast";
+import { PrikbordLijst } from "@/components/team/PrikbordLijst";
+import { PrikbordKaart } from "@/components/team/PrikbordKaart";
+import { OphaalClaimSheet, type GeclaimdAdres } from "@/components/team/OphaalClaimSheet";
 import { useTeam } from "@/components/team/TeamContext";
-import { bouwWhatsappUrl } from "@/lib/utils";
-import type { Badge, OphaalverzoekPrikbord } from "@/lib/types";
+import { cn } from "@/lib/utils";
+import type { Coordinaat } from "@/lib/geo";
+import type { Badge, OphaalverzoekNearby } from "@/lib/types";
 
-interface GeclaimdAdres {
-  id: string;
-  donateur_naam: string;
-  donateur_adres: string;
-  donateur_postcode: string;
-  donateur_telefoonnummer: string | null;
-}
+type Weergave = "lijst" | "kaart";
 
+/**
+ * Ophaal Prikbord — AVG/privacy-uitgangspunt: de exacte locatie (en
+ * het adres) van een donateur bereikt de browser nooit vóórdat een
+ * speler op "Claim deze rit" heeft gedrukt. Vóór dat moment komt alle
+ * data van `GET /api/ophaalverzoeken/nearby` (de "getNearbyRequests"-
+ * functie), die uitsluitend afstand, postcode-cijfers en een vervaagde
+ * ("fuzzy") coördinaat teruggeeft. Zie components/team/OphaalClaimSheet
+ * voor het enige moment waarop dat verandert.
+ */
 export function Prikbord({ clubId, clubSlug, clubNaam }: { clubId: string; clubSlug: string; clubNaam: string }) {
   const { gekozenTeam, spelerNaam, spelerId } = useTeam();
-  const [verzoeken, setVerzoeken] = useState<OphaalverzoekPrikbord[]>([]);
-  const [geclaimd, setGeclaimd] = useState<Record<string, GeclaimdAdres>>({});
+
+  const [weergave, setWeergave] = useState<Weergave>("lijst");
+  const [verzoeken, setVerzoeken] = useState<OphaalverzoekNearby[]>([]);
   const [ladend, setLadend] = useState(true);
-  const [claimBezig, setClaimBezig] = useState<string | null>(null);
+
+  const [spelerLocatie, setSpelerLocatie] = useState<Coordinaat | null>(null);
+  const [locatieOpgevraagd, setLocatieOpgevraagd] = useState(false);
+
+  const [geselecteerdId, setGeselecteerdId] = useState<string | null>(null);
+  const [geclaimd, setGeclaimd] = useState<Record<string, GeclaimdAdres>>({});
+  const [claimBezig, setClaimBezig] = useState(false);
   const [foutmelding, setFoutmelding] = useState<string | null>(null);
   const [nieuweBadges, setNieuweBadges] = useState<Badge[]>([]);
 
+  // Ééns per bezoek de locatie van de speler vragen — non-blocking en
+  // optioneel: zonder toestemming werkt het prikbord gewoon door, dan
+  // toont de lijst alleen geen afstand en valt de kaart terug op het
+  // zwaartepunt van de zones.
+  useEffect(() => {
+    if (typeof navigator === "undefined" || !navigator.geolocation) {
+      setLocatieOpgevraagd(true);
+      return;
+    }
+    navigator.geolocation.getCurrentPosition(
+      (positie) => {
+        setSpelerLocatie({ lat: positie.coords.latitude, lng: positie.coords.longitude });
+        setLocatieOpgevraagd(true);
+      },
+      () => setLocatieOpgevraagd(true),
+      { timeout: 8000 }
+    );
+  }, []);
+
   const laadVerzoeken = useCallback(async () => {
-    const supabase = createClient();
-    const { data } = await supabase
-      .from("ophaalverzoeken_prikbord")
-      .select("*")
-      .eq("club_id", clubId)
-      .order("aangemaakt_op", { ascending: true });
-    setVerzoeken((data as OphaalverzoekPrikbord[]) ?? []);
+    if (!locatieOpgevraagd) return;
+    const params = new URLSearchParams({ club_id: clubId });
+    if (spelerLocatie) {
+      params.set("lat", String(spelerLocatie.lat));
+      params.set("lng", String(spelerLocatie.lng));
+    }
+    const res = await fetch(`/api/ophaalverzoeken/nearby?${params.toString()}`);
+    if (res.ok) {
+      const json = await res.json();
+      setVerzoeken(json.ophaalverzoeken ?? []);
+    }
     setLadend(false);
-  }, [clubId]);
+  }, [clubId, spelerLocatie, locatieOpgevraagd]);
 
   useEffect(() => {
     laadVerzoeken();
@@ -46,10 +79,9 @@ export function Prikbord({ clubId, clubSlug, clubNaam }: { clubId: string; clubS
     return () => clearInterval(interval);
   }, [laadVerzoeken]);
 
-  // Na een refresh (of op een ander apparaat) staat een eerder door ons
-  // geclaimd verzoek nog wel op "geclaimd", maar het adres/telefoonnummer
-  // zit niet meer in de lokale state — haal dat dan alsnog op, want de
-  // WhatsApp-knop en het adres hebben het nodig.
+  // Een eerder door ons geclaimd verzoek (ook op een ander apparaat of
+  // na een reload) staat al op "geclaimd", maar het adres zit dan nog
+  // niet in de lokale cache — haal dat alsnog op zodra we het zien.
   useEffect(() => {
     if (!gekozenTeam) return;
 
@@ -67,11 +99,11 @@ export function Prikbord({ clubId, clubSlug, clubNaam }: { clubId: string; clubS
         setGeclaimd((prev) => ({
           ...prev,
           [v.id]: {
-            id: v.id,
             donateur_naam: o.donateurs.naam,
             donateur_adres: o.donateurs.adres,
             donateur_postcode: o.donateurs.postcode,
             donateur_telefoonnummer: o.donateurs.telefoonnummer,
+            opmerking: o.opmerking,
           },
         }));
       }
@@ -80,7 +112,7 @@ export function Prikbord({ clubId, clubSlug, clubNaam }: { clubId: string; clubS
 
   async function claim(id: string) {
     if (!gekozenTeam) return;
-    setClaimBezig(id);
+    setClaimBezig(true);
     setFoutmelding(null);
 
     try {
@@ -101,104 +133,78 @@ export function Prikbord({ clubId, clubSlug, clubNaam }: { clubId: string; clubS
       setGeclaimd((prev) => ({
         ...prev,
         [id]: {
-          id,
           donateur_naam: o.donateurs.naam,
           donateur_adres: o.donateurs.adres,
           donateur_postcode: o.donateurs.postcode,
           donateur_telefoonnummer: o.donateurs.telefoonnummer,
+          opmerking: o.opmerking,
         },
       }));
       if (json.nieuweBadges?.length > 0) setNieuweBadges(json.nieuweBadges);
       await laadVerzoeken();
     } finally {
-      setClaimBezig(null);
+      setClaimBezig(false);
     }
   }
+
+  const geselecteerd = verzoeken.find((v) => v.id === geselecteerdId) ?? null;
 
   return (
     <div className="mx-auto max-w-lg space-y-3 p-4">
       {nieuweBadges.length > 0 && <NieuweBadgeToasts badges={nieuweBadges} />}
-      <h1 className="text-lg font-bold text-gray-900">Ophaal prikbord</h1>
-      <p className="text-sm text-gray-500">Claim een adres om flessen bij donateurs op te halen.</p>
 
-      {foutmelding && (
-        <p className="rounded-lg bg-red-50 px-3 py-2 text-sm text-red-700">{foutmelding}</p>
-      )}
+      <div>
+        <h1 className="text-lg font-bold text-gray-900">Ophaal prikbord</h1>
+        <p className="text-sm text-gray-500">Claim een verzoek om flessen bij een donateur op te halen.</p>
+      </div>
 
-      {ladend && (
+      <div className="inline-flex w-full rounded-xl bg-gray-100 p-1">
+        <button
+          onClick={() => setWeergave("lijst")}
+          className={cn(
+            "flex flex-1 items-center justify-center gap-1.5 rounded-lg py-2 text-sm font-semibold transition-colors",
+            weergave === "lijst" ? "bg-white text-gray-900 shadow-sm" : "text-gray-500"
+          )}
+        >
+          <List className="h-4 w-4" /> Lijst
+        </button>
+        <button
+          onClick={() => setWeergave("kaart")}
+          className={cn(
+            "flex flex-1 items-center justify-center gap-1.5 rounded-lg py-2 text-sm font-semibold transition-colors",
+            weergave === "kaart" ? "bg-white text-gray-900 shadow-sm" : "text-gray-500"
+          )}
+        >
+          <MapIcon className="h-4 w-4" /> Kaart
+        </button>
+      </div>
+
+      {ladend ? (
         <div className="flex justify-center py-10 text-gray-400">
           <Loader2 className="h-6 w-6 animate-spin" />
         </div>
+      ) : weergave === "lijst" ? (
+        <PrikbordLijst items={verzoeken} onSelecteer={setGeselecteerdId} />
+      ) : (
+        <PrikbordKaart items={verzoeken} spelerLocatie={spelerLocatie} onSelecteer={setGeselecteerdId} />
       )}
 
-      {!ladend && verzoeken.length === 0 && (
-        <p className="py-10 text-center text-gray-500">Geen openstaande ophaalverzoeken op dit moment.</p>
-      )}
-
-      {verzoeken.map((v) => {
-        const jouwClaim = v.geclaimd_door_team_id === gekozenTeam?.id;
-        const adres = geclaimd[v.id];
-
-        const whatsappTekst = gekozenTeam
-          ? `Hoi! Ik ben ${spelerNaam || "een teamlid"} van team ${gekozenTeam.team_naam} en ik kom zo de statiegeldflessen ophalen voor ${clubNaam}!`
-          : "";
-        const whatsappUrl = bouwWhatsappUrl(adres?.donateur_telefoonnummer, whatsappTekst);
-
-        return (
-          <Card key={v.id} className="space-y-3 p-4">
-            <div className="flex items-start justify-between gap-2">
-              <div className="flex items-center gap-2 text-gray-700">
-                <MapPin className="h-4 w-4 shrink-0 text-gray-400" />
-                {adres ? (
-                  <div className="text-sm">
-                    <p className="font-semibold text-gray-900">{adres.donateur_naam}</p>
-                    <p>{adres.donateur_adres}, {adres.donateur_postcode}</p>
-                    {adres.donateur_telefoonnummer && <p className="text-gray-500">{adres.donateur_telefoonnummer}</p>}
-                  </div>
-                ) : (
-                  <p className="text-sm">Postcode {v.postcode_cijfers}xx</p>
-                )}
-              </div>
-              <StatusBadge status={v.status} />
-            </div>
-
-            <p className="flex items-center gap-1.5 text-sm text-gray-600">
-              <Package className="h-4 w-4 text-gray-400" /> ± {v.aantal_geschat} flessen/blikjes
-            </p>
-
-            {v.status === "open" && (
-              <Button
-                size="sm"
-                className="w-full"
-                disabled={claimBezig === v.id || !gekozenTeam}
-                onClick={() => claim(v.id)}
-              >
-                {claimBezig === v.id && <Loader2 className="h-4 w-4 animate-spin" />}
-                Claim dit adres
-              </Button>
-            )}
-
-            {v.status === "geclaimd" && jouwClaim && (
-              <div className="flex gap-2">
-                <a href={whatsappUrl} target="_blank" rel="noreferrer" className="flex-1">
-                  <Button size="sm" className="w-full bg-[#25D366] hover:bg-[#1ebe57]">
-                    <MessageCircleMore className="h-4 w-4" /> Laat weten dat je eraan komt
-                  </Button>
-                </a>
-                <Link href={`/club/${clubSlug}/upload?verzoek=${v.id}`} className="flex-1">
-                  <Button size="sm" variant="secondary" className="w-full">
-                    <Camera className="h-4 w-4" /> Bonnetje uploaden
-                  </Button>
-                </Link>
-              </div>
-            )}
-
-            {v.status === "geclaimd" && !jouwClaim && (
-              <p className="text-center text-xs text-gray-400">Al geclaimd door een ander team</p>
-            )}
-          </Card>
-        );
-      })}
+      <BottomSheet open={geselecteerd !== null} onClose={() => setGeselecteerdId(null)} titel="Ophaalverzoek">
+        {geselecteerd && gekozenTeam && (
+          <OphaalClaimSheet
+            item={geselecteerd}
+            jouwClaim={geselecteerd.geclaimd_door_team_id === gekozenTeam.id}
+            geclaimdAdres={geclaimd[geselecteerd.id] ?? null}
+            claimBezig={claimBezig}
+            foutmelding={foutmelding}
+            onClaim={() => claim(geselecteerd.id)}
+            clubSlug={clubSlug}
+            clubNaam={clubNaam}
+            spelerNaam={spelerNaam}
+            teamNaam={gekozenTeam.team_naam}
+          />
+        )}
+      </BottomSheet>
     </div>
   );
 }

@@ -25,12 +25,16 @@ values
   ('a2222222-2222-2222-2222-222222222222', '22222222-2222-2222-2222-222222222222', 'F-jes'),
   ('a3333333-3333-3333-3333-333333333331', '33333333-3333-3333-3333-333333333333', 'JO15-1');
 
-insert into donateurs (id, naam, email, adres, postcode, telefoonnummer)
+-- lat/lng zijn hier bewust ingevuld met plausibele Enschede-coördinaten
+-- (in het echt komt dit uit een geocoding-stap bij het ophaalformulier),
+-- puur zodat de afstand/kaartweergave op het prikbord ook lokaal iets
+-- te tonen heeft.
+insert into donateurs (id, naam, email, adres, postcode, telefoonnummer, lat, lng)
 values
-  ('d1111111-1111-1111-1111-111111111111', 'Fam. Jansen', 'jansen@example.com', 'Meteorstraat 12', '7511 AB', '0612345678'),
-  ('d2222222-2222-2222-2222-222222222222', 'Fam. de Vries', 'devries@example.com', 'Groenoordlaan 4', '7513 CD', '0623456789'),
-  ('d3333333-3333-3333-3333-333333333333', 'Fam. Bakker', 'bakker@example.com', 'Bataafseweg 88', '7521 EF', '0634567890'),
-  ('d4444444-4444-4444-4444-444444444444', 'Fam. Smit', 'smit@example.com', 'Meteorstraat 40', '7511 AB', '0645678901');
+  ('d1111111-1111-1111-1111-111111111111', 'Fam. Jansen', 'jansen@example.com', 'Meteorstraat 12', '7511 AB', '0612345678', 52.218900, 6.890000),
+  ('d2222222-2222-2222-2222-222222222222', 'Fam. de Vries', 'devries@example.com', 'Groenoordlaan 4', '7513 CD', '0623456789', 52.226000, 6.905000),
+  ('d3333333-3333-3333-3333-333333333333', 'Fam. Bakker', 'bakker@example.com', 'Bataafseweg 88', '7521 EF', '0634567890', 52.234000, 6.870000),
+  ('d4444444-4444-4444-4444-444444444444', 'Fam. Smit', 'smit@example.com', 'Meteorstraat 40', '7511 AB', '0645678901', 52.219500, 6.891000);
 
 insert into ophaalverzoeken (id, donateur_id, club_id, doel_id, geclaimd_door_team_id, status, aantal_geschat, opmerking)
 values

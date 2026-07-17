@@ -53,18 +53,26 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ error: "Dit doel bestaat niet (meer) of is niet actief." }, { status: 400 });
   }
 
+  // lat/lng zitten hier bewust alleen in de payload als ze zijn
+  // meegegeven (browser-geolocatie toegestaan): bij een upsert update
+  // Supabase alleen de kolommen die je meestuurt, dus een donateur die
+  // een volgende keer zónder locatietoestemming doneert, verliest zijn
+  // eerder vastgelegde coördinaat niet.
+  const donateurData: Record<string, unknown> = {
+    naam,
+    email,
+    adres,
+    postcode,
+    telefoonnummer: body.telefoonnummer?.trim() || null,
+  };
+  if (Number.isFinite(body.lat) && Number.isFinite(body.lng)) {
+    donateurData.lat = body.lat;
+    donateurData.lng = body.lng;
+  }
+
   const { data: donateur, error: donateurError } = await supabase
     .from("donateurs")
-    .upsert(
-      {
-        naam,
-        email,
-        adres,
-        postcode,
-        telefoonnummer: body.telefoonnummer?.trim() || null,
-      },
-      { onConflict: "email" }
-    )
+    .upsert(donateurData, { onConflict: "email" })
     .select()
     .single();
 

@@ -21,6 +21,7 @@ export function OphaalForm({ clubId, clubNaam, doelen }: { clubId: string; clubN
   const [bekendeDonateur, setBekendeDonateur] = useState(false);
   const [status, setStatus] = useState<"idle" | "versturen" | "verzonden" | "fout">("idle");
   const [foutmelding, setFoutmelding] = useState<string | null>(null);
+  const [locatie, setLocatie] = useState<{ lat: number; lng: number } | null>(null);
 
   useEffect(() => {
     const profiel = laadDonorProfiel();
@@ -32,6 +33,19 @@ export function OphaalForm({ clubId, clubNaam, doelen }: { clubId: string; clubN
       setTelefoonnummer(profiel.telefoonnummer ?? "");
       setBekendeDonateur(true);
     }
+  }, []);
+
+  // Optioneel en non-blocking: als de browser toestemming geeft, geeft
+  // dit het prikbord straks een afstand + kaart-cirkel voor dit
+  // verzoek. Wordt niets gevraagd afgedwongen — zonder toestemming
+  // werkt het formulier gewoon door, dan blijft lat/lng leeg.
+  useEffect(() => {
+    if (typeof navigator === "undefined" || !navigator.geolocation) return;
+    navigator.geolocation.getCurrentPosition(
+      (positie) => setLocatie({ lat: positie.coords.latitude, lng: positie.coords.longitude }),
+      () => setLocatie(null),
+      { timeout: 8000 }
+    );
   }, []);
 
   async function handleSubmit(e: FormEvent) {
@@ -49,6 +63,8 @@ export function OphaalForm({ clubId, clubNaam, doelen }: { clubId: string; clubN
           adres,
           postcode,
           telefoonnummer,
+          lat: locatie?.lat,
+          lng: locatie?.lng,
           club_id: clubId,
           doel_id: doelId,
           aantal_geschat: aantalGeschat,

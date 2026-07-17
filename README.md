@@ -61,7 +61,7 @@ app/
   speler/page.tsx                 Generieke club-zoekpagina voor "Inloggen als Speler"
   club/[slug]/layout.tsx          Mobiele shell voor teamleden (teamkeuze + bottom nav)
   club/[slug]/leaderboard/        Live scorebord + persoonlijke topscorers + Klapper van de Week
-  club/[slug]/prikbord/           Ophaal Prikbord (claimen van adressen)
+  club/[slug]/prikbord/           Ophaal Prikbord (lijst/kaart-toggle, privacy-veilige claim-flow)
   club/[slug]/upload/             Hybride OCR Bonnetjes Scanner (ReceiptScanner), adres-gebonden
   club/[slug]/scan-eigen/         Scan Eigen Statiegeld — zelfde scanner, zonder geclaimd adres
   club/[slug]/profiel/            Persoonlijk profiel: impact-stats, streak-meter, badge-showcase
@@ -87,6 +87,7 @@ lib/
   types.ts                        TypeScript-types die 1-op-1 het DB-schema volgen
   utils.ts                        Formatting, puntenberekening, anomaly-detection-regels, WhatsApp-URL-builder
   ocr.ts                          Client-side "OCR-engine" (gesimuleerd) + regex-extractie
+  geo.ts                          Haversine-afstand, fuzzy-coördinaat, 2D-projectie (Ophaal Prikbord)
   impact.ts                       Euro → tastbaar object-vertaling (Profiel "Jouw impact")
   badges.ts                       Badge-engine: evaluateBadges(spelerId, scanBedrag)
   motion.ts                       Gedeelde Framer Motion fade-up variant (respecteert reduced-motion)
@@ -103,6 +104,7 @@ supabase/
   migrations/0007_meerdere_doelen_per_club.sql  doelen-tabel, ophaalverzoeken.doel_id, RPC v2 zonder doel
   migrations/0008_gamification.sql  spelers, badges, speler_badges + streak-/badge-logica
   migrations/0009_badge_engine_uitbreiding.sql  buurt-/snelheids-/verborgen badges, geclaimd_door_speler_id
+  migrations/0010_geolocatie_prikbord.sql  donateurs.lat/lng voor afstand + fuzzy kaartweergave
   seed.sql                        Demodata voor lokale ontwikkeling
 ```
 
@@ -268,10 +270,14 @@ data-fetch duurt.
 - `donateurs`, `ophaalverzoeken` en `bonnetjes` hebben **geen**
   publieke policies: alleen route handlers met de **service-role key**
   mogen hier direct bij. De browser komt hier nooit rechtstreeks aan.
-- Het **Ophaal Prikbord** leest via de view `ophaalverzoeken_prikbord`,
-  die bewust alleen niet-privacygevoelige kolommen toont (status,
-  geschat aantal, eerste 4 postcodecijfers). Het volledige adres wordt
-  pas server-side vrijgegeven zodra een team het verzoek claimt.
+- Het **Ophaal Prikbord** haalt zijn data op via `GET
+  /api/ophaalverzoeken/nearby` (zie "Privacy-veilig prikbord" hieronder),
+  dat bewust alleen niet-privacygevoelige velden teruggeeft (afstand,
+  postcode-cijfers, geschat aantal, een vervaagde kaart-coördinaat).
+  Het volledige adres — en de echte coördinaat — wordt pas server-side
+  vrijgegeven zodra een team het verzoek claimt. De oudere publieke view
+  `ophaalverzoeken_prikbord` (migratie 0002) bestaat nog in het schema
+  maar wordt door de huidige UI niet meer bevraagd.
 - Alleen de **penningmeester-verificatie** (bonnetje goed-/afkeuren,
   echt geld bevestigen) vereist een ingelogde gebruiker die via
   `club_admins` aan die club gekoppeld is (Supabase Auth, e-mail + wachtwoord).
@@ -317,6 +323,53 @@ bevestigde bedrag, maar blijft wél zelf de autoriteit over de anomaly
 detection (bedragdrempel + scanpatroon) — een cliënt kan dus nooit de
 verificatieplicht van het bestuur omzeilen door zelf een status mee te
 sturen.
+
+## Privacy-veilig Ophaal Prikbord (`Prikbord.tsx`)
+
+Het uitgangspunt: de exacte locatie (en het adres) van een donateur mag
+de browser nooit bereiken vóórdat een speler op "Claim deze rit" heeft
+gedrukt. Dat is nu letterlijk in de architectuur ingebakken, niet enkel
+een UI-conventie:
+
+- **`GET /api/ophaalverzoeken/nearby`** (`lib/geo.ts` + de route zelf)
+  is de "getNearbyRequests"-functie: leest `ophaalverzoeken` +
+  `donateurs.lat/lng` server-side met de service-role (donateurs heeft
+  geen publieke leesrechten) en bouwt daaruit per verzoek een gesaneerd
+  object met enkel `afstand_meters` (echte Haversine-afstand tot de
+  speler), `postcode_cijfers` en een `fuzzy_locatie` — een met
+  `vervaagCoordinaat` willekeurig (maar per verzoek-id consistent)
+  150-300m verschoven punt. `donateurs.naam`, `.adres`,
+  `.telefoonnummer` en de échte `.lat`/`.lng` worden hier nooit in
+  meegegeven; dat gebeurt pas in `POST
+  /api/ophaalverzoeken/[id]/claim` ná een geslaagde claim (bestond al
+  vóór deze uitbreiding).
+- **Lijst/kaart-toggle** (`Prikbord.tsx`): de lijst
+  (`PrikbordLijst.tsx`) toont per kaart alleen afstand, postcode-cijfers
+  en het geschatte aantal — nooit een straatnaam. De kaart
+  (`PrikbordKaart.tsx`) is een zelfgebouwde **mock-kaart** (geen
+  `react-leaflet`/externe tile-server-dependency nodig voor deze
+  illustratie): transparante, gekleurde zone-cirkels op basis van de
+  vervaagde coördinaat, geprojecteerd op een 2D-vlak t.o.v. de
+  speler-positie (`lib/geo.ts#naarMeterOffset`) — bewust géén exacte
+  pin-markers.
+- **Speler-geolocatie**: `navigator.geolocation.getCurrentPosition`,
+  non-blocking en optioneel. Zonder toestemming werkt het prikbord
+  gewoon door — de lijst toont dan "Afstand onbekend" i.p.v. een
+  afstand, en de kaart centreert op het zwaartepunt van de zones i.p.v.
+  op de speler.
+- **Claim-flow als Bottom Sheet** (`components/ui/BottomSheet.tsx` +
+  `components/team/OphaalClaimSheet.tsx`): klikken op een lijst-item of
+  kaart-cirkel opent een sheet met exact de geanonimiseerde gegevens +
+  een "Claim deze rit"-knop. Pas de response van die claim (dezelfde
+  `POST /api/ophaalverzoeken/[id]/claim` als voorheen) onthult het
+  adres, de opmerking van de donateur ("Kijk uit voor de hond") en de
+  WhatsApp-knop — in dezelfde sheet, zonder scherm-wissel.
+- **Donateur-coördinaten** (`donateurs.lat`/`.lng`, migratie 0010):
+  nullable, optioneel gevuld via `navigator.geolocation` in
+  `OphaalForm.tsx` bij het indienen van het ophaalformulier (non-
+  blocking, net als bij de speler). Zonder toestemming blijft een
+  verzoek gewoon zichtbaar op het prikbord, alleen zonder
+  afstand/kaart-cirkel — enkel de postcode-cijfers.
 
 ## Gamification: spelers, badges en streaks
 
@@ -490,10 +543,21 @@ Supabase-dashboard van je project:
   `speler_id` bij het eerstvolgende bezoek). Voor een productie-uitrol
   met écht onvervalsbare per-speler-geschiedenis is Supabase Auth via
   `team_members` de aangewezen uitbreiding.
-- Het prikbord ververst via polling (elke 5s), niet via Supabase
-  Realtime, omdat de onderliggende tabel bewust geen anon-leesrechten
-  heeft (RLS). Het leaderboard gebruikt wél echte Realtime, want
-  `teams` is public-readable.
+- Het prikbord ververst via polling (elke 5s) van `GET
+  /api/ophaalverzoeken/nearby`, niet via Supabase Realtime — dat
+  endpoint doet server-side afstandsberekening op basis van de
+  speler-locatie, wat zich niet leent voor een generieke
+  `postgres_changes`-subscription. Het leaderboard gebruikt wél echte
+  Realtime, want `teams`/`spelers` zijn public-readable zonder
+  server-side berekening nodig.
+- Donateur-coördinaten worden niet automatisch gegeocodet uit het
+  ingevulde adres — `lat`/`lng` komen uitsluitend uit
+  `navigator.geolocation` op het moment van indienen. Vult iemand het
+  ophaalformulier in op een ander apparaat/moment dan waar de flessen
+  staan (of weigert die locatietoestemming), dan blijft dat verzoek
+  gewoon zichtbaar op het prikbord — alleen zonder afstand of
+  kaart-cirkel, enkel de postcode-cijfers. Een echte geocoding-stap
+  (adres → coördinaat) is de voor de hand liggende vervolgstap.
 - "Campagne afronden" (WhatsApp/Tikkie-herinnering richting teams) is
   een eenmalige, niet-periodieke actie gebaseerd op het cumulatieve
   `teams.totaal_opgehaald_euro`; er is geen aparte status die bijhoudt

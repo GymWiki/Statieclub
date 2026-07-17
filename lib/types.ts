@@ -54,6 +54,9 @@ export interface Donateur {
   adres: string;
   postcode: string;
   telefoonnummer: string | null;
+  /** Optioneel — alleen server-side gebruikt (afstand + fuzzy kaart-cirkel), nooit direct naar de client. */
+  lat: number | null;
+  lng: number | null;
   created_at: string;
   updated_at: string;
 }
@@ -92,6 +95,24 @@ export interface OphaalverzoekMetAdres extends Ophaalverzoek {
   donateur_adres: string;
   donateur_postcode: string;
   donateur_telefoonnummer: string | null;
+}
+
+/**
+ * Rij uit `GET /api/ophaalverzoeken/nearby` (de "getNearbyRequests"-
+ * functie) — bewust GEEN adres/naam/telefoonnummer/exacte coördinaat.
+ * `fuzzy_locatie` is een willekeurig verschoven punt (150-300m), enkel
+ * voor de zone-cirkel op de mock-kaart; `afstand_meters` is wél de
+ * echte afstand (die verklapt zelf geen richting/locatie).
+ */
+export interface OphaalverzoekNearby {
+  id: string;
+  status: OphaalverzoekStatus;
+  aantal_geschat: number;
+  geclaimd_door_team_id: string | null;
+  aangemaakt_op: string;
+  postcode_cijfers: string;
+  afstand_meters: number | null;
+  fuzzy_locatie: { lat: number; lng: number } | null;
 }
 
 export interface Bonnetje {
@@ -209,6 +230,9 @@ export interface OphaalformulierInput {
   adres: string;
   postcode: string;
   telefoonnummer?: string;
+  /** Optioneel — alleen gevuld als de browser-geolocatie werd toegestaan. */
+  lat?: number;
+  lng?: number;
   club_id: string;
   doel_id: string;
   aantal_geschat: number;
