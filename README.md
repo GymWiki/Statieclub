@@ -15,22 +15,50 @@ via een live, gegamificeerd leaderboard om de meeste flessen op te halen.
 | Rol | Binnenkomst | Kernroutes |
 |---|---|---|
 | **Aanbieder** (buurtbewoner, geen account) | `/` (marketing) → `/donateren` (postcode) | `/clubs/[slug]` — thermometer + frictieloos ophaalformulier |
-| **Clublid** (lichte teamkeuze, geen account) | `/club/[slug]` (kies team + naam) | `/club/[slug]/leaderboard` (scorebord + MVP's + Klapper van de Week), `/club/[slug]/prikbord` (claim + **WhatsApp-knop**), `/club/[slug]/upload` (OCR-scanner, adres-gebonden), `/club/[slug]/scan-eigen` (**Scan Eigen Statiegeld**, zonder adres), `/club/[slug]/profiel` (persoonlijke stats, streak, badges) |
-| **Beheerder** (echt account, e-mail+wachtwoord) | `/admin/login` → `/admin` | `/admin/[slug]` (dashboard), `/admin/[slug]/controle` (anomaly-verificatie), `/admin/[slug]/campagne-beheer` (teams + uitnodigingslinks) |
+| **Clublid** (lichte teamkeuze, geen account) | `/` (marketing) → `/speler` (kies club) → `/club/[slug]` (kies team + naam) | `/club/[slug]/leaderboard` (scorebord + MVP's + Klapper van de Week), `/club/[slug]/prikbord` (claim + **WhatsApp-knop**), `/club/[slug]/upload` (OCR-scanner, adres-gebonden), `/club/[slug]/scan-eigen` (**Scan Eigen Statiegeld**, zonder adres — via de FAB), `/club/[slug]/profiel` (persoonlijke stats, streak, badges) |
+| **Beheerder** (echt account, e-mail+wachtwoord) | `/` (marketing) → `/admin/login` → `/admin` | `/admin/[slug]` (dashboard), `/admin/[slug]/controle` (anomaly-verificatie), `/admin/[slug]/campagne-beheer` (teams + uitnodigingslinks) |
 
 Bewuste keuzes t.o.v. een 1-op-1 "ideale" routenaamgeving: de donor-flow
 heet `/donateren` + `/clubs/[slug]` i.p.v. `/zoek` + `/club/[clubId]` —
 die laatste naam was al in gebruik voor de teamlid-sectie. Clubleden
 loggen bewust niet in met een account (zie hieronder); "inloggen" voor
-hen is de lichte teamkeuze + naam.
+hen is de lichte teamkeuze + naam. `/speler` is een generieke
+club-zoekpagina voor wie zonder clubspecifieke WhatsApp-uitnodiging
+start (zie "Rolscheiding op de landingspagina" hieronder).
+
+### Rolscheiding op de landingspagina
+
+De marketing-site (`app/page.tsx`) en de `Nav` maken de drie rollen nu
+expliciet uit elkaar in plaats van één generieke "voor clubs"-link:
+
+- **Navbar** (`Nav.tsx`): een subtiele "Voor Besturen"-link scrollt naar
+  `ClubPitch` (`#voor-besturen`); de "Inloggen"-knop is een dropdown met
+  twee opties — "Inloggen als Speler" (`/speler`) en "Inloggen als
+  Penningmeester" (`/admin/login`). Zelfgebouwd (geen Radix/Headless UI
+  in de dependencies) met een click-outside- en Escape-handler; op
+  mobiel valt de dropdown terug op een platte lijst in het uitklapmenu.
+- **`RoleSelector`** (`components/marketing/RoleSelector.tsx`, direct
+  onder de Hero): drie Framer Motion-cards ("Ik wil doneren" →
+  `/donateren`, "Ik ben speler" → `/speler`, "Ik beheer een club" →
+  `/admin/nieuwe-club`) met een `whileHover={{ y: -6 }}`-lift en een
+  glazen `bg-white/60 backdrop-blur-xl`-look, in lijn met de bestaande
+  Nav-glassmorphism.
+- **`/speler`** (`app/speler/page.tsx`): een lichte lijst van actieve
+  clubs die doorlinkt naar `/club/[slug]`. Teamleden komen normaal al
+  via een clubspecifieke WhatsApp-uitnodiging (campagnebeheer) direct
+  op de juiste plek terecht; deze pagina vangt het geval op van iemand
+  die zonder zo'n link zelf zijn/haar club zoekt. Kiezen van een club
+  leidt naar de bestaande `TeamKiezer` — dát is voor een speler
+  "inloggen", niet een wachtwoord.
 
 ## Mappenstructuur
 
 ```
 app/
-  page.tsx                        Marketing-landingspagina (Nav/Hero/HowItWorks/ClubPitch/Footer)
+  page.tsx                        Marketing-landingspagina (Nav/Hero/RoleSelector/HowItWorks/ClubPitch/Footer)
   donateren/page.tsx              Functionele donor-flow (postcode + live clubgrid, met ?postcode=)
   clubs/[slug]/page.tsx           Club-detail + ophaalformulier (donor)
+  speler/page.tsx                 Generieke club-zoekpagina voor "Inloggen als Speler"
   club/[slug]/layout.tsx          Mobiele shell voor teamleden (teamkeuze + bottom nav)
   club/[slug]/leaderboard/        Live scorebord + persoonlijke topscorers + Klapper van de Week
   club/[slug]/prikbord/           Ophaal Prikbord (claimen van adressen)
@@ -47,7 +75,7 @@ app/
   api/                            Route handlers (schrijfacties, service-role)
 
 components/
-  marketing/                      Landingspagina-secties (Nav, Hero, HowItWorks, ClubPitch, Footer)
+  marketing/                      Landingspagina-secties (Nav, Hero, RoleSelector, HowItWorks, ClubPitch, Footer)
   ui/                             Generieke UI-bouwstenen (Button, Card, ProgressBar, ...)
   donor/                          Donor-dashboard componenten
   team/                           Club/team mobiele-view componenten (incl. WhatsApp-claimknop)

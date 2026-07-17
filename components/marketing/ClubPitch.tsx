@@ -9,7 +9,7 @@ export function ClubPitch() {
   const item = useFadeUpVariants();
 
   return (
-    <section className="bg-slate-900 py-24 sm:py-32">
+    <section id="voor-besturen" className="scroll-mt-20 bg-slate-900 py-24 sm:py-32">
       <div className="mx-auto max-w-6xl px-5 lg:px-8">
         <motion.div
           initial="hidden"

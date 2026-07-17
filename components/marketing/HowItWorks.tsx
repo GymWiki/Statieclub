@@ -29,7 +29,7 @@ export function HowItWorks() {
   const item = useFadeUpVariants();
 
   return (
-    <section id="hoe-het-werkt" className="bg-white py-24 sm:py-32">
+    <section id="hoe-het-werkt" className="scroll-mt-20 bg-white py-24 sm:py-32">
       <div className="mx-auto max-w-6xl px-5 lg:px-8">
         <motion.div
           initial="hidden"
