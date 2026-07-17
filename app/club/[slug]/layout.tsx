@@ -29,7 +29,7 @@ export default async function ClubMobileLayout({
     .order("team_naam");
 
   return (
-    <TeamProvider clubSlug={slug} teams={(teams as Team[]) ?? []}>
+    <TeamProvider clubSlug={slug} clubId={club.id} teams={(teams as Team[]) ?? []}>
       <ClubShell clubSlug={slug} clubNaam={club.naam}>
         {children}
       </ClubShell>

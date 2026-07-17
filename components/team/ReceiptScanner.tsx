@@ -20,8 +20,9 @@ import { Button } from "@/components/ui/Button";
 import { Input } from "@/components/ui/Input";
 import { AnimatedNumber } from "@/components/ui/AnimatedNumber";
 import { Confetti } from "@/components/ui/Confetti";
+import { NieuweBadgeToasts } from "@/components/ui/BadgeToast";
 import { formatEuro } from "@/lib/utils";
-import type { BonnetjeStatus } from "@/lib/types";
+import type { Badge, BonnetjeStatus } from "@/lib/types";
 
 type Fase = "capture" | "verwerken" | "verifieren" | "opslaan" | "gelukt";
 
@@ -40,12 +41,15 @@ export function ReceiptScanner({
   teamId,
   clubId,
   teamNaam,
+  spelerId,
   onVoltooid,
 }: {
-  ophaalverzoekId: string;
+  /** Geen ophaalverzoekId -> directe inlevering zonder geclaimd adres ("Scan Eigen Statiegeld"). */
+  ophaalverzoekId?: string;
   teamId: string;
   clubId: string;
   teamNaam: string;
+  spelerId?: string;
   onVoltooid: () => void;
 }) {
   const bestandInputRef = useRef<HTMLInputElement>(null);
@@ -57,9 +61,12 @@ export function ReceiptScanner({
   const [bedragInput, setBedragInput] = useState("");
   const [bewerken, setBewerken] = useState(false);
   const [foutmelding, setFoutmelding] = useState<string | null>(null);
-  const [resultaat, setResultaat] = useState<{ bedrag: number; punten: number; status: BonnetjeStatus } | null>(
-    null
-  );
+  const [resultaat, setResultaat] = useState<{
+    bedrag: number;
+    punten: number;
+    status: BonnetjeStatus;
+    nieuweBadges: Badge[];
+  } | null>(null);
 
   // Ruim de object-URL van de preview netjes op zodra hij niet meer gebruikt wordt.
   useEffect(() => {
@@ -128,8 +135,9 @@ export function ReceiptScanner({
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
-          ophaalverzoek_id: ophaalverzoekId,
+          ophaalverzoek_id: ophaalverzoekId ?? null,
           team_id: teamId,
+          speler_id: spelerId ?? null,
           foto_url: publicUrl.publicUrl,
           bedrag_euro: Math.round(bedragGetal * 100) / 100,
         }),
@@ -146,6 +154,7 @@ export function ReceiptScanner({
         bedrag: json.bonnetje.bedrag_euro,
         punten: json.bonnetje.punten,
         status: json.bonnetje.status,
+        nieuweBadges: json.nieuweBadges ?? [],
       });
       setFase("gelukt");
     } catch {
@@ -216,6 +225,7 @@ export function ReceiptScanner({
     return (
       <Card className="relative flex flex-col items-center gap-3 overflow-hidden p-8 text-center">
         {!wachtOpControle && <Confetti />}
+        {resultaat.nieuweBadges.length > 0 && <NieuweBadgeToasts badges={resultaat.nieuweBadges} />}
         {wachtOpControle ? (
           <>
             <ClockAlert className="h-12 w-12 text-amber-500" />

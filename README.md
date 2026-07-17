@@ -15,7 +15,7 @@ via een live, gegamificeerd leaderboard om de meeste flessen op te halen.
 | Rol | Binnenkomst | Kernroutes |
 |---|---|---|
 | **Aanbieder** (buurtbewoner, geen account) | `/` (marketing) → `/donateren` (postcode) | `/clubs/[slug]` — thermometer + frictieloos ophaalformulier |
-| **Clublid** (lichte teamkeuze, geen account) | `/club/[slug]` (kies team + naam) | `/club/[slug]/leaderboard`, `/club/[slug]/prikbord` (claim + **WhatsApp-knop**), `/club/[slug]/upload` (OCR-scanner) |
+| **Clublid** (lichte teamkeuze, geen account) | `/club/[slug]` (kies team + naam) | `/club/[slug]/leaderboard` (scorebord + MVP's + Klapper van de Week), `/club/[slug]/prikbord` (claim + **WhatsApp-knop**), `/club/[slug]/upload` (OCR-scanner, adres-gebonden), `/club/[slug]/scan-eigen` (**Scan Eigen Statiegeld**, zonder adres), `/club/[slug]/profiel` (persoonlijke stats, streak, badges) |
 | **Beheerder** (echt account, e-mail+wachtwoord) | `/admin/login` → `/admin` | `/admin/[slug]` (dashboard), `/admin/[slug]/controle` (anomaly-verificatie), `/admin/[slug]/campagne-beheer` (teams + uitnodigingslinks) |
 
 Bewuste keuzes t.o.v. een 1-op-1 "ideale" routenaamgeving: de donor-flow
@@ -32,9 +32,11 @@ app/
   donateren/page.tsx              Functionele donor-flow (postcode + live clubgrid, met ?postcode=)
   clubs/[slug]/page.tsx           Club-detail + ophaalformulier (donor)
   club/[slug]/layout.tsx          Mobiele shell voor teamleden (teamkeuze + bottom nav)
-  club/[slug]/leaderboard/        Live scorebord
+  club/[slug]/leaderboard/        Live scorebord + persoonlijke topscorers + Klapper van de Week
   club/[slug]/prikbord/           Ophaal Prikbord (claimen van adressen)
-  club/[slug]/upload/             Hybride OCR Bonnetjes Scanner (ReceiptScanner)
+  club/[slug]/upload/             Hybride OCR Bonnetjes Scanner (ReceiptScanner), adres-gebonden
+  club/[slug]/scan-eigen/         Scan Eigen Statiegeld — zelfde scanner, zonder geclaimd adres
+  club/[slug]/profiel/            Persoonlijk profiel: impact-stats, streak-meter, badge-showcase
   admin/login/                    Login/registratie (e-mail + wachtwoord)
   admin/nieuwe-club/              Zelfregistratie: nieuwe club aanmaken
   admin/[slug]/layout.tsx         Gedeelde toegangscheck + tab-navigatie
@@ -57,8 +59,11 @@ lib/
   types.ts                        TypeScript-types die 1-op-1 het DB-schema volgen
   utils.ts                        Formatting, puntenberekening, anomaly-detection-regels, WhatsApp-URL-builder
   ocr.ts                          Client-side "OCR-engine" (gesimuleerd) + regex-extractie
+  impact.ts                       Euro → tastbaar object-vertaling (Profiel "Jouw impact")
+  badges.ts                       Badge-engine: evaluateBadges(spelerId, scanBedrag)
   motion.ts                       Gedeelde Framer Motion fade-up variant (respecteert reduced-motion)
   donorProfile.ts / teamSelection.ts  Lichte lokale "wie ben ik"-opslag (localStorage, incl. spelersnaam)
+  playerIdentity.ts               Persistente, client-gegenereerde speler-id (localStorage, geen login)
 
 supabase/
   migrations/0001_init_schema.sql Tabellen, enums, triggers
@@ -68,6 +73,7 @@ supabase/
   migrations/0005_anomaly_detection_en_facturatie.sql  flag_reden, herziene triggers, facturen-tabel
   migrations/0006_zelfregistratie_clubs.sql  RPC maak_club_met_beheerder (v1), rol-kolom weg
   migrations/0007_meerdere_doelen_per_club.sql  doelen-tabel, ophaalverzoeken.doel_id, RPC v2 zonder doel
+  migrations/0008_gamification.sql  spelers, badges, speler_badges + streak-/badge-logica
   seed.sql                        Demodata voor lokale ontwikkeling
 ```
 
@@ -83,7 +89,10 @@ Volledig relationeel, geen geneste/array/JSON-lijstkolommen — elke
 | `teams` | club_id, team_naam, totaal_punten, totaal_opgehaald_euro |
 | `donateurs` | naam, email (uniek), adres, postcode, telefoonnummer |
 | `ophaalverzoeken` | donateur_id, club_id, doel_id, geclaimd_door_team_id, status, aantal_geschat |
-| `bonnetjes` | ophaalverzoek_id, team_id, foto_url, bedrag_euro, punten, status, flag_reden |
+| `bonnetjes` | ophaalverzoek_id (optioneel), team_id, speler_id (optioneel), foto_url, bedrag_euro, punten, status, flag_reden |
+| `spelers` | club_id, team_id, naam, avatar_emoji, totaal_opgehaald_euro, totaal_scans, current_week_streak, longest_streak |
+| `badges` | naam, beschrijving, icoon, categorie (Volume/Streak/Actie), criteria_type, criteria_waarde |
+| `speler_badges` | speler_id, badge_id, unlocked_at |
 | `club_admins` | club_id, user_id (Supabase Auth) |
 | `team_members` | team_id, user_id (Supabase Auth), naam |
 | `facturen` | club_id, periode_start, periode_eind, totaal_goedgekeurd_bedrag, platform_fee_bedrag, status |
@@ -193,8 +202,10 @@ data-fetch duurt.
 
 ### Beveiliging (RLS)
 
-- `clubs` en `teams` zijn publiek leesbaar (landingspagina, live
-  leaderboard zonder login).
+- `clubs`, `teams`, `doelen`, `spelers`, `badges` en `speler_badges` zijn
+  publiek leesbaar (landingspagina, live leaderboard, badge-showcase —
+  allemaal zonder login). Schrijven op `spelers`/`speler_badges` gaat
+  ook hier uitsluitend via route handlers met de service-role key.
 - `donateurs`, `ophaalverzoeken` en `bonnetjes` hebben **geen**
   publieke policies: alleen route handlers met de **service-role key**
   mogen hier direct bij. De browser komt hier nooit rechtstreeks aan.
@@ -247,6 +258,64 @@ bevestigde bedrag, maar blijft wél zelf de autoriteit over de anomaly
 detection (bedragdrempel + scanpatroon) — een cliënt kan dus nooit de
 verificatieplicht van het bestuur omzeilen door zelf een status mee te
 sturen.
+
+## Gamification: spelers, badges en streaks
+
+Bovenop de team-brede punten/euro's krijgt elke speler nu ook een eigen,
+persoonlijke laag — zonder de bewuste no-login-architectuur van het
+team-gedeelte los te laten:
+
+- **Speler-identiteit** (`lib/playerIdentity.ts`): een `crypto.randomUUID()`
+  die eenmalig per apparaat in `localStorage` wordt bewaard
+  (`statieclub_speler_id`). Geen account, geen wachtwoord — dezelfde
+  frictieloze filosofie als de teamkeuze. `TeamContext` laadt deze id bij
+  het opstarten en synct hem (samen met team + naam) naar `POST
+  /api/spelers`, dat een upsert doet die bewust `avatar_emoji` **niet**
+  meestuurt zodat een eenmaal gekozen avatar nooit wordt overschreven.
+- **"Scan Eigen Statiegeld"** (`/club/[slug]/scan-eigen`,
+  `ScanEigenStatiegeld.tsx`): dezelfde `ReceiptScanner`, maar zonder
+  `ophaalverzoekId` — een speler kan zo direct zelf ingeleverde flessen
+  claimen zonder eerst een donateursadres te claimen. Daarom is
+  `bonnetjes.ophaalverzoek_id` sinds migratie 0008 nullable; `POST
+  /api/bonnetjes` slaat de adres-claim-validatie dan simpelweg over.
+- **Streaks**: bijgehouden in `spelers.current_week_streak` /
+  `longest_streak`, berekend door de Postgres-functie
+  `credit_speler_voor_bonnetje` (aangeroepen vanuit dezelfde
+  `apply_bonnetje_insert`/`apply_bonnetje_status_change`-triggers die ook
+  teams/doelen crediteren): elke week met minstens 1 goedgekeurd
+  bonnetje telt de streak op, een gemiste week breekt hem. Bewuste
+  vereenvoudiging: het afkeuren van een oud bonnetje trekt wél het
+  bedrag/aantal scans terug, maar breekt de streak niet met
+  terugwerkende kracht.
+- **Badge-engine** (`lib/badges.ts#evaluateBadges`): een pure
+  applicatiefunctie (geen DB-trigger) die na elk goedgekeurd bonnetje
+  wordt aangeroepen vanuit `POST /api/bonnetjes` en `PATCH
+  /api/bonnetjes/[id]/verify`. Ze leest de actuele speler-stand + de nog
+  niet ontgrendelde badges uit `badges`, toetst het `criteria_type`
+  (`eerste_scan`, `enkele_scan_euro`, `totaal_euro`, `aantal_scans`,
+  `week_streak`) en schrijft nieuwe rijen naar `speler_badges`. Minimaal
+  12 badges zijn geseed in migratie 0008, verdeeld over de categorieën
+  Volume/Streak/Actie. Nieuwe badge-soorten toevoegen is een rij in
+  `badges` — geen migratie voor de logica zelf nodig, tenzij het om een
+  echt nieuw criterium-type gaat.
+- **Profiel** (`/club/[slug]/profiel`, `Profiel.tsx`): avatar-picker,
+  totaal opgehaald + aantal scans, een "Jouw impact"-vertaling
+  (`lib/impact.ts#berekenImpact`, €15 per trainingsbal — puur ter
+  illustratie) en de badge-showcase (`BadgesGrid.tsx`, ontgrendelde
+  badges in kleur/goud, vergrendelde grijs met slotje, klikken toont de
+  ontgrendel-criteria).
+- **Leaderboard-uitbreiding**: naast het team-scorebord toont
+  `Leaderboard.tsx` nu ook een live "Persoonlijke topscorers"-lijst
+  (top 5 spelers op `totaal_opgehaald_euro`, via Realtime) en een
+  "Klapper van de week"-widget (het hoogste enkele bonnetje van de
+  afgelopen 7 dagen). Dat laatste vraagt een join op `bonnetjes`, dat
+  geen publieke RLS-policy heeft — daarom wordt dat server-side met de
+  service-role opgehaald in `leaderboard/page.tsx` en enkel het
+  geaggregeerde resultaat (naam, avatar, bedrag) naar de client gestuurd.
+- **Nieuwe-badge-toast** (`components/ui/BadgeToast.tsx`): `POST
+  /api/bonnetjes` en de verify-route geven `nieuweBadges` terug in hun
+  response; `ReceiptScanner` toont die als een reeks Framer Motion-
+  toasts bovenop het successcherm.
 
 ## Clubbeheer: zelfregistratie
 
@@ -329,12 +398,18 @@ Supabase-dashboard van je project:
   upgrade naar Next.js 16 volledig oplossen; hier bewust niet
   automatisch op geüpgraded om de scaffolding niet te breken — check dit
   voor productiegebruik.
-- Teamlid-identificatie is een lokale keuze (localStorage) + voornaam,
-  geen echte login — zie beveiligingssectie hierboven. De `team_members`-
-  tabel (Supabase Auth per teamlid) staat al in het schema maar wordt
-  bewust niet gebruikt: een volwaardige login-stap zou de "frictieloos
-  claimen op de fiets"-ervaring vertragen. Bij een latere behoefte aan
-  echte accountability per speler is dat de aangewezen uitbreiding.
+- Teamlid-identificatie is een lokale keuze (localStorage) + voornaam +
+  een client-gegenereerde speler-id, geen echte login — zie
+  beveiligingssectie hierboven. De `team_members`-tabel (Supabase Auth
+  per teamlid) staat al in het schema maar wordt bewust niet gebruikt:
+  een volwaardige login-stap zou de "frictieloos claimen op de
+  fiets"-ervaring vertragen. De gamification-laag (`spelers`, streaks,
+  badges) geeft nu wel individuele stats/accountability, maar blijft
+  bewust op dit lichte vertrouwensmodel gebaseerd: wist iemand zijn
+  browserdata, dan verliest hij zijn speler-historie (nieuwe
+  `speler_id` bij het eerstvolgende bezoek). Voor een productie-uitrol
+  met écht onvervalsbare per-speler-geschiedenis is Supabase Auth via
+  `team_members` de aangewezen uitbreiding.
 - Het prikbord ververst via polling (elke 5s), niet via Supabase
   Realtime, omdat de onderliggende tabel bewust geen anon-leesrechten
   heeft (RLS). Het leaderboard gebruikt wél echte Realtime, want

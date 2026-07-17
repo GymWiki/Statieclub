@@ -14,7 +14,7 @@ interface ClaimItem {
 }
 
 export function BonnetjeUpload() {
-  const { gekozenTeam } = useTeam();
+  const { gekozenTeam, spelerId } = useTeam();
   const zoekParams = useSearchParams();
   const voorgeselecteerd = zoekParams.get("verzoek");
 
@@ -42,6 +42,7 @@ export function BonnetjeUpload() {
           teamId={gekozenTeam.id}
           clubId={gekozenTeam.club_id}
           teamNaam={gekozenTeam.team_naam}
+          spelerId={spelerId}
           onVoltooid={() => {
             setGeselecteerd(null);
             laadItems();

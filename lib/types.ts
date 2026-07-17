@@ -94,8 +94,9 @@ export interface OphaalverzoekMetAdres extends Ophaalverzoek {
 
 export interface Bonnetje {
   id: string;
-  ophaalverzoek_id: string;
+  ophaalverzoek_id: string | null;
   team_id: string;
+  speler_id: string | null;
   foto_url: string;
   bedrag_euro: number;
   punten: number;
@@ -104,6 +105,65 @@ export interface Bonnetje {
   geverifieerd_door: string | null;
   geverifieerd_op: string | null;
   created_at: string;
+}
+
+// ─────────────────────────────────────────────────────────────
+// Gamification: spelers, badges
+// ─────────────────────────────────────────────────────────────
+
+export type BadgeCategorie = "Volume" | "Streak" | "Actie";
+
+/**
+ * Machine-sleutel die lib/badges.ts#evaluateBadges begrijpt. Nieuwe
+ * soorten badges toevoegen is een kwestie van een rij in `badges` +
+ * (indien echt een nieuw soort criterium) een extra case daar — geen
+ * schemawijziging nodig.
+ */
+export type BadgeCriteriaType =
+  | "eerste_scan"
+  | "enkele_scan_euro"
+  | "totaal_euro"
+  | "aantal_scans"
+  | "week_streak";
+
+export interface Speler {
+  id: string;
+  club_id: string;
+  team_id: string | null;
+  naam: string;
+  avatar_emoji: string;
+  totaal_opgehaald_euro: number;
+  totaal_scans: number;
+  current_week_streak: number;
+  longest_streak: number;
+  laatste_scan_week: string | null;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface Badge {
+  id: string;
+  naam: string;
+  beschrijving: string;
+  icoon: string;
+  categorie: BadgeCategorie;
+  criteria_type: BadgeCriteriaType;
+  criteria_waarde: number | null;
+  volgorde: number;
+  created_at: string;
+}
+
+export interface SpelerBadge {
+  id: string;
+  speler_id: string;
+  badge_id: string;
+  unlocked_at: string;
+}
+
+/** Badge + of/wanneer de speler hem al ontgrendeld heeft — gebruikt door BadgesGrid. */
+export interface BadgeMetStatus extends Badge {
+  ontgrendeld: boolean;
+  unlocked_at: string | null;
 }
 
 /** Platform-factuur: 5% software-fee over goedgekeurde bonnetjes in een periode. */

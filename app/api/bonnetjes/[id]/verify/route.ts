@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createClient, createServiceRoleClient } from "@/lib/supabase/server";
 import { berekenPunten } from "@/lib/utils";
+import { evaluateBadges } from "@/lib/badges";
 
 type Actie = "goedkeuren" | "afkeuren" | "overschrijven";
 
@@ -47,7 +48,7 @@ export async function PATCH(request: NextRequest, { params }: { params: Promise<
 
   const { data: bonnetje, error: bonnetjeError } = await service
     .from("bonnetjes")
-    .select("id, status, team_id, teams(club_id)")
+    .select("id, status, team_id, speler_id, teams(club_id)")
     .eq("id", id)
     .single();
 
@@ -99,5 +100,10 @@ export async function PATCH(request: NextRequest, { params }: { params: Promise<
     );
   }
 
-  return NextResponse.json({ bonnetje: updated });
+  const nieuweBadges =
+    updated.status === "goedgekeurd" && updated.speler_id
+      ? await evaluateBadges(updated.speler_id, updated.bedrag_euro)
+      : [];
+
+  return NextResponse.json({ bonnetje: updated, nieuweBadges });
 }
