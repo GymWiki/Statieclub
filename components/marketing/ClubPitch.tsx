@@ -2,8 +2,24 @@
 
 import Link from "next/link";
 import { motion } from "framer-motion";
-import { ScanLine, ShieldCheck, ArrowRight, Trophy } from "lucide-react";
+import { Target, ArrowRight, Trophy, Lock, Camera, Image as ImageIcon, Check } from "lucide-react";
 import { useFadeUpVariants } from "@/lib/motion";
+import { cn } from "@/lib/utils";
+
+const LEADERBOARD_MOCKUP = [
+  { naam: "Tim", avatar: "😎", streak: "🔥 3 week streak", punten: 842 },
+  { naam: "Sanne", avatar: "🦊", streak: "🔥 1 week streak", punten: 610 },
+  { naam: "Noah", avatar: "🐼", streak: null, punten: 455 },
+];
+
+const BADGES_MOCKUP = [
+  { label: "Scanner Pro", icoon: "🏆", ontgrendeld: true },
+  { label: "Koning van de Wijk", icoon: "👑", ontgrendeld: true },
+  { label: "Snelle Service", icoon: "⚡", ontgrendeld: true },
+  { label: "???", icoon: null, ontgrendeld: false },
+  { label: "???", icoon: null, ontgrendeld: false },
+  { label: "???", icoon: null, ontgrendeld: false },
+];
 
 export function ClubPitch() {
   const item = useFadeUpVariants();
@@ -25,7 +41,7 @@ export function ClubPitch() {
         </motion.div>
 
         <div className="mt-16 grid grid-cols-1 gap-5 md:grid-cols-3">
-          {/* Blok 1 — groot: Live Leaderboards */}
+          {/* Blok 1 — groot: Live Leaderboard (spelersweergave) */}
           <motion.div
             initial="hidden"
             whileInView="visible"
@@ -44,37 +60,31 @@ export function ClubPitch() {
                   LIVE
                 </span>
               </div>
-              <h3 className="mt-6 font-display text-2xl font-bold text-white">Live leaderboards</h3>
+              <h3 className="mt-6 font-display text-2xl font-bold text-white">Live leaderboard</h3>
               <p className="mt-2 max-w-sm text-slate-400">
-                Laat jeugdteams tegen elkaar strijden met live scores in de kantine.
+                Spelers klimmen met avatars, streaks en badges — jeugdteams strijden om de eer in de kantine.
               </p>
             </div>
 
-            {/* Mini leaderboard-mockup */}
-            <div className="mt-8 space-y-2.5">
-              {[
-                { naam: "JO11-1", punten: 842, aandeel: 100 },
-                { naam: "Heren 3", punten: 610, aandeel: 72 },
-                { naam: "JO13-2", punten: 455, aandeel: 54 },
-              ].map((team, i) => (
-                <div key={team.naam} className="flex items-center gap-3">
-                  <span className="w-5 text-sm font-bold text-slate-500">{i + 1}</span>
-                  <span className="w-20 shrink-0 text-sm font-medium text-slate-200">{team.naam}</span>
-                  <div className="h-2 flex-1 overflow-hidden rounded-full bg-white/5">
-                    <div
-                      className={`h-full rounded-full ${i === 0 ? "bg-emerald-400" : "bg-blue-400/70"}`}
-                      style={{ width: `${team.aandeel}%` }}
-                    />
-                  </div>
-                  <span className="w-12 shrink-0 text-right text-sm tabular-nums text-slate-400">
-                    {team.punten}
+            {/* Mini leaderboard-mockup: spelers i.p.v. alleen teams */}
+            <div className="mt-8 space-y-3">
+              {LEADERBOARD_MOCKUP.map((speler, i) => (
+                <div key={speler.naam} className="flex items-center gap-3">
+                  <span className="w-4 text-sm font-bold text-slate-500">{i + 1}</span>
+                  <span className="grid h-9 w-9 shrink-0 place-items-center rounded-full bg-white/10 text-base">
+                    {speler.avatar}
                   </span>
+                  <div className="min-w-0 flex-1">
+                    <p className="truncate text-sm font-semibold text-slate-100">{speler.naam}</p>
+                    {speler.streak && <p className="text-xs text-amber-400">{speler.streak}</p>}
+                  </div>
+                  <span className="shrink-0 text-sm font-bold tabular-nums text-emerald-400">{speler.punten}</span>
                 </div>
               ))}
             </div>
           </motion.div>
 
-          {/* Blok 2 — vierkant: OCR Scanner */}
+          {/* Blok 2 — vierkant: Penningmeester dashboard */}
           <motion.div
             initial="hidden"
             whileInView="visible"
@@ -82,18 +92,51 @@ export function ClubPitch() {
             variants={item}
             transition={{ delay: 0.1 }}
             whileHover={{ y: -4 }}
-            className="flex flex-col items-center justify-center rounded-3xl border border-white/10 bg-white/[0.04] p-8 text-center md:min-h-[22rem]"
+            className="flex flex-col justify-between rounded-3xl border border-white/10 bg-white/[0.04] p-8 md:min-h-[22rem]"
           >
-            <div className="grid h-16 w-16 place-items-center rounded-2xl bg-emerald-500/15">
-              <ScanLine className="h-8 w-8 text-emerald-400" />
+            <div>
+              <div className="grid h-12 w-12 place-items-center rounded-2xl bg-emerald-500/15">
+                <Target className="h-6 w-6 text-emerald-400" />
+              </div>
+              <h3 className="mt-6 font-display text-xl font-bold text-white">Penningmeester dashboard</h3>
+              <p className="mt-2 text-sm text-slate-400">
+                Volg elke euro live, en grijp met één klik in bij een verdachte scan.
+              </p>
             </div>
-            <h3 className="mt-6 font-display text-xl font-bold text-white">Slimme OCR-scanner</h3>
-            <p className="mt-2 text-sm text-slate-400">
-              Foto maken van de bon = punten claimen. De app leest het bedrag automatisch.
-            </p>
+
+            <div className="mt-6 space-y-5">
+              {/* Mini-thermometer mockup */}
+              <div>
+                <div className="flex items-center justify-between text-xs text-slate-400">
+                  <span>Doel: Nieuwe tenues</span>
+                  <span className="font-semibold text-emerald-400">65%</span>
+                </div>
+                <div className="mt-1.5 h-2.5 overflow-hidden rounded-full bg-white/5">
+                  <div className="h-full w-[65%] rounded-full bg-gradient-to-r from-emerald-400 to-emerald-500" />
+                </div>
+                <p className="mt-1.5 text-sm font-bold text-white">
+                  €520 <span className="font-normal text-slate-500">van €800</span>
+                </p>
+              </div>
+
+              {/* Anomaly-verificatie-flow mockup */}
+              <div className="flex items-center gap-1.5 overflow-x-auto rounded-xl border border-red-500/20 bg-red-500/5 px-3 py-2.5 text-xs">
+                <span className="flex shrink-0 items-center gap-1 rounded-full bg-red-500/15 px-2 py-1 font-semibold text-red-400">
+                  🚩 €15,00 (JO11)
+                </span>
+                <ArrowRight className="h-3 w-3 shrink-0 text-slate-600" />
+                <span className="flex shrink-0 items-center gap-1 text-slate-300">
+                  <ImageIcon className="h-3 w-3" /> Foto bekijken
+                </span>
+                <ArrowRight className="h-3 w-3 shrink-0 text-slate-600" />
+                <span className="flex shrink-0 items-center gap-1 rounded-full bg-emerald-500/15 px-2 py-1 font-semibold text-emerald-400">
+                  <Check className="h-3 w-3" /> Goedkeuren
+                </span>
+              </div>
+            </div>
           </motion.div>
 
-          {/* Blok 3 — rechthoek: Geen administratie */}
+          {/* Blok 3 — breed: Badges & Achievements */}
           <motion.div
             initial="hidden"
             whileInView="visible"
@@ -101,16 +144,47 @@ export function ClubPitch() {
             variants={item}
             transition={{ delay: 0.2 }}
             whileHover={{ y: -4 }}
-            className="flex flex-col items-center gap-6 rounded-3xl border border-white/10 bg-white/[0.04] p-8 md:col-span-3 md:flex-row"
+            className="rounded-3xl border border-white/10 bg-white/[0.04] p-8 md:col-span-3"
           >
-            <div className="grid h-16 w-16 shrink-0 place-items-center rounded-2xl bg-blue-500/15">
-              <ShieldCheck className="h-8 w-8 text-blue-400" />
+            <div className="flex items-center gap-4">
+              <div className="grid h-12 w-12 shrink-0 place-items-center rounded-2xl bg-amber-500/15">
+                <Camera className="h-6 w-6 text-amber-400" />
+              </div>
+              <div>
+                <h3 className="font-display text-xl font-bold text-white">Badges &amp; achievements</h3>
+                <p className="mt-1 text-sm text-slate-400">
+                  Elke speler bouwt een eigen trofeeënkast op — scannen wordt een spelletje.
+                </p>
+              </div>
             </div>
-            <div className="text-center md:text-left">
-              <h3 className="font-display text-xl font-bold text-white">Geen administratie</h3>
-              <p className="mt-1.5 text-sm text-slate-400">
-                Als bestuurslid houd je 100% controle met ons automatische goedkeuringsdashboard.
-              </p>
+
+            <div className="mt-6 grid grid-cols-3 gap-3 sm:grid-cols-6">
+              {BADGES_MOCKUP.map((badge, i) => (
+                <div
+                  key={i}
+                  className={cn(
+                    "flex flex-col items-center gap-1.5 rounded-2xl border p-3 text-center",
+                    badge.ontgrendeld ? "border-amber-400/30 bg-amber-400/10" : "border-white/5 bg-white/[0.02]"
+                  )}
+                >
+                  <span
+                    className={cn(
+                      "grid h-10 w-10 place-items-center rounded-full text-lg",
+                      badge.ontgrendeld ? "bg-amber-400/20" : "bg-white/5"
+                    )}
+                  >
+                    {badge.ontgrendeld ? badge.icoon : <Lock className="h-4 w-4 text-slate-600" />}
+                  </span>
+                  <span
+                    className={cn(
+                      "line-clamp-1 text-[11px] font-medium",
+                      badge.ontgrendeld ? "text-slate-200" : "text-slate-600"
+                    )}
+                  >
+                    {badge.label}
+                  </span>
+                </div>
+              ))}
             </div>
           </motion.div>
         </div>

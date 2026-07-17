@@ -55,7 +55,7 @@ expliciet uit elkaar in plaats van één generieke "voor clubs"-link:
 
 ```
 app/
-  page.tsx                        Marketing-landingspagina (Nav/Hero/RoleSelector/HowItWorks/ClubPitch/Footer)
+  page.tsx                        Marketing-landingspagina (Nav/Hero/ActivityTicker/RoleSelector/HowItWorks/ClubPitch/Faq/Footer)
   donateren/page.tsx              Functionele donor-flow (postcode + live clubgrid, met ?postcode=)
   clubs/[slug]/page.tsx           Club-detail + ophaalformulier (donor)
   speler/page.tsx                 Generieke club-zoekpagina voor "Inloggen als Speler"
@@ -75,7 +75,7 @@ app/
   api/                            Route handlers (schrijfacties, service-role)
 
 components/
-  marketing/                      Landingspagina-secties (Nav, Hero, RoleSelector, HowItWorks, ClubPitch, Footer)
+  marketing/                      Landingspagina-secties (Nav, Hero, ActivityTicker, RoleSelector, HowItWorks, ClubPitch, Faq, Footer)
   ui/                             Generieke UI-bouwstenen (Button, Card, ProgressBar, ...)
   donor/                          Donor-dashboard componenten
   team/                           Club/team mobiele-view componenten (incl. WhatsApp-claimknop)
@@ -218,6 +218,36 @@ Alle scroll-reveals (`whileInView` in Framer Motion) en de CSS-
 animaties (`animate-mesh-drift`, `animate-radar-ping`) respecteren
 `prefers-reduced-motion` via `lib/motion.ts#useFadeUpVariants` resp.
 Tailwind's `motion-safe:`-variant.
+
+### Showcase- en proof-secties (conversie/geloofwaardigheid)
+
+Naast Hero/RoleSelector/HowItWorks bevat de landingspagina drie secties
+die puur bedoeld zijn om vertrouwen te wekken vóórdat iemand een account
+aanmaakt of zijn adres deelt — alle inhoud hieronder is **dummy-data**,
+niet uit Supabase opgehaald:
+
+- **`ActivityTicker`** (`components/marketing/ActivityTicker.tsx`,
+  direct onder de Hero): een horizontaal scrollend "live activiteit"-
+  tikkertje. Naadloze loop via de klassieke dubbele-content-truc (de
+  items staan twee keer achter elkaar, Framer Motion verschuift precies
+  50% naar links in een oneindige lineaire loop) i.p.v. een vaste
+  pixelwaarde — dat blijft correct ongeacht hoeveel tekst er in de
+  items staat. Respecteert `prefers-reduced-motion` (animatie helemaal
+  uit i.p.v. vertraagd, want een oneindige loop kán niet "verkort"
+  worden).
+- **`ClubPitch`** (bento-grid, zie hierboven bij "Clubbeheer") toont nu
+  drie rijke mockups i.p.v. platte tekst: een spelers-leaderboard
+  (avatars, naam, week-streak, punten), een penningmeester-dashboard
+  (mini-thermometer + de anomaly-verificatie-flow als visuele stappen:
+  🚩 bedrag → 📸 foto bekijken → ✅ goedkeuren) en een badges-grid met
+  ontgrendelde (kleur/goud) naast vergrendelde (grijs, slotje, "???")
+  achievements — een marketing-spiegel van de échte Trofeeënkast op
+  `/club/[slug]/profiel`.
+- **`Faq`** (`components/marketing/Faq.tsx`, vlak boven de `Footer`):
+  een accordion met veelgestelde vragen van zowel donateurs
+  (thuisblijven, AVG) als besturen (kosten, betrouwbaarheid). Zelfgebouwd
+  met `AnimatePresence` + een `height: "auto"`-animatie, hetzelfde
+  patroon als het mobiele hamburgermenu in `Nav.tsx`.
 
 **Bekende afweging:** de Hero-CTA navigeert client-side naar
 `/donateren`, een Server Component die live clubs uit Supabase
