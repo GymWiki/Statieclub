@@ -1,13 +1,14 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { Medal, Zap } from "lucide-react";
+import { Medal, Target, Zap } from "lucide-react";
 import { createClient } from "@/lib/supabase/client";
 import { Card } from "@/components/ui/Card";
+import { ProgressBar } from "@/components/ui/ProgressBar";
 import { AnimatedNumber } from "@/components/ui/AnimatedNumber";
-import { cn, formatEuro } from "@/lib/utils";
+import { cn, formatEuro, formatVoortgang } from "@/lib/utils";
 import { useTeam } from "@/components/team/TeamContext";
-import type { Speler, Team } from "@/lib/types";
+import type { Doel, Speler, Team } from "@/lib/types";
 
 const medailleKleur = ["text-yellow-500", "text-gray-400", "text-amber-700"];
 
@@ -20,15 +21,18 @@ export interface KlapperVanDeWeek {
 export function Leaderboard({
   clubId,
   initialTeams,
+  initialDoelen,
   initialTopSpelers,
   klapperVanDeWeek,
 }: {
   clubId: string;
   initialTeams: Team[];
+  initialDoelen: Doel[];
   initialTopSpelers: Speler[];
   klapperVanDeWeek: KlapperVanDeWeek | null;
 }) {
   const [teams, setTeams] = useState<Team[]>(initialTeams);
+  const [doelen, setDoelen] = useState<Doel[]>(initialDoelen);
   const [topSpelers, setTopSpelers] = useState<Speler[]>(initialTopSpelers);
   const { gekozenTeam } = useTeam();
 
@@ -58,6 +62,13 @@ export function Leaderboard({
           });
         }
       )
+      .on(
+        "postgres_changes",
+        { event: "UPDATE", schema: "public", table: "doelen", filter: `club_id=eq.${clubId}` },
+        (payload) => {
+          setDoelen((prev) => prev.map((d) => (d.id === payload.new.id ? { ...d, ...(payload.new as Doel) } : d)));
+        }
+      )
       .subscribe();
 
     return () => {
@@ -70,6 +81,30 @@ export function Leaderboard({
   return (
     <div className="mx-auto max-w-lg space-y-3 p-4">
       <h1 className="text-lg font-bold text-gray-900">Live scorebord</h1>
+
+      {doelen.length > 0 && (
+        <Card className="space-y-3 p-4">
+          <p className="flex items-center gap-1.5 text-sm font-bold text-gray-900">
+            <Target className="h-4 w-4 text-brand-600" /> Waar we samen voor sparen
+          </p>
+          {doelen.map((doel) => {
+            const percentage = formatVoortgang(doel.opgehaald_bedrag, doel.doelbedrag);
+            return (
+              <div key={doel.id} className="space-y-1.5">
+                <div className="flex items-baseline justify-between gap-2">
+                  <p className="truncate text-sm font-medium text-gray-700">{doel.titel}</p>
+                  <p className="shrink-0 text-sm font-bold text-brand-600">{percentage}%</p>
+                </div>
+                <ProgressBar percentage={percentage} />
+                <p className="text-xs text-gray-500">
+                  <AnimatedNumber value={doel.opgehaald_bedrag} format={formatEuro} /> van{" "}
+                  {formatEuro(doel.doelbedrag)} opgehaald
+                </p>
+              </div>
+            );
+          })}
+        </Card>
+      )}
 
       {klapperVanDeWeek && (
         <Card className="flex items-center gap-3 border-amber-300 bg-gradient-to-br from-amber-50 to-white p-4">

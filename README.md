@@ -453,6 +453,15 @@ team-gedeelte los te laten:
   geen publieke RLS-policy heeft — daarom wordt dat server-side met de
   service-role opgehaald in `leaderboard/page.tsx` en enkel het
   geaggregeerde resultaat (naam, avatar, bedrag) naar de client gestuurd.
+- **Clubdoel-voortgang voor spelers**: bovenaan `Leaderboard.tsx` toont
+  een kaart ("Waar we samen voor sparen") de voortgang per actief doel
+  (`doelen`, publiek leesbaar sinds migratie 0007) — dezelfde
+  `ProgressBar`/`formatVoortgang` als het admin-dashboard
+  (`SaldoOverzicht.tsx`), inclusief live updates via Realtime op
+  `doelen`. Zonder dit zag een speler nergens waar de club voor spaart
+  of hoe dichtbij het doel al is; nu staat dat motiverend vooraan op
+  het scorebord, vóór de "Klapper van de week". Zijn er geen actieve
+  doelen, dan blijft de kaart gewoon weg.
 - **Nieuwe-badge-toast** (`components/ui/BadgeToast.tsx`): `POST
   /api/bonnetjes` en de verify-route geven `nieuweBadges` terug in hun
   response; `ReceiptScanner` toont die als een reeks Framer Motion-

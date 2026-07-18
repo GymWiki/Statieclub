@@ -1,7 +1,7 @@
 import { notFound } from "next/navigation";
 import { createClient, createServiceRoleClient } from "@/lib/supabase/server";
 import { Leaderboard, type KlapperVanDeWeek } from "@/components/team/Leaderboard";
-import type { Club, Speler, Team } from "@/lib/types";
+import type { Club, Doel, Speler, Team } from "@/lib/types";
 
 export default async function LeaderboardPage({ params }: { params: Promise<{ slug: string }> }) {
   const { slug } = await params;
@@ -11,6 +11,13 @@ export default async function LeaderboardPage({ params }: { params: Promise<{ sl
   if (!club) notFound();
 
   const { data: teams } = await supabase.from("teams").select("*").eq("club_id", club.id);
+
+  const { data: doelen } = await supabase
+    .from("doelen")
+    .select("*")
+    .eq("club_id", club.id)
+    .eq("is_actief", true)
+    .order("created_at", { ascending: true });
 
   const { data: topSpelers } = await supabase
     .from("spelers")
@@ -51,6 +58,7 @@ export default async function LeaderboardPage({ params }: { params: Promise<{ sl
     <Leaderboard
       clubId={club.id}
       initialTeams={(teams as Team[]) ?? []}
+      initialDoelen={(doelen as Doel[]) ?? []}
       initialTopSpelers={(topSpelers as Speler[]) ?? []}
       klapperVanDeWeek={klapperVanDeWeek}
     />
