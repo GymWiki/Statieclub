@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { LayoutDashboard, ShieldAlert, Users, Target } from "lucide-react";
+import { LayoutDashboard, ShieldAlert, Users, Target, CreditCard } from "lucide-react";
 import { cn } from "@/lib/utils";
 
 export function AdminTabs({ slug }: { slug: string }) {
@@ -13,6 +13,7 @@ export function AdminTabs({ slug }: { slug: string }) {
     { href: `/admin/${slug}/doelen`, label: "Doelen", icon: Target, exact: false },
     { href: `/admin/${slug}/controle`, label: "Controle", icon: ShieldAlert, exact: false },
     { href: `/admin/${slug}/campagne-beheer`, label: "Campagnebeheer", icon: Users, exact: false },
+    { href: `/admin/${slug}/facturatie`, label: "Facturatie", icon: CreditCard, exact: false },
   ];
 
   return (

@@ -151,6 +151,9 @@ export function statusLabel(status: string): string {
     concept: "Concept",
     verzonden: "Verzonden",
     betaald: "Betaald",
+    pending: "In behandeling",
+    paid: "Betaald",
+    failed: "Mislukt",
   };
   return labels[status] ?? status;
 }
@@ -167,6 +170,9 @@ export function statusKleur(status: string): string {
     concept: "bg-gray-100 text-gray-700 border-gray-300",
     verzonden: "bg-status-claimed/10 text-status-claimed border-status-claimed/30",
     betaald: "bg-status-open/10 text-status-open border-status-open/30",
+    pending: "bg-amber-100 text-amber-700 border-amber-300",
+    paid: "bg-status-open/10 text-status-open border-status-open/30",
+    failed: "bg-red-100 text-red-700 border-red-300",
   };
   return kleuren[status] ?? "bg-gray-100 text-gray-700 border-gray-300";
 }

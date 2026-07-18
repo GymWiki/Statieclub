@@ -19,6 +19,8 @@ export type BonnetjeBron = "scan" | "glas_naar_kas";
  */
 export type BonnetjeStatus = "in_afwachting_controle" | "goedgekeurd" | "afgekeurd";
 export type FactuurStatus = "concept" | "verzonden" | "betaald";
+/** Status van een automatische SEPA-incasso via Mollie (migratie 0014) — apart van FactuurStatus (de handmatige conceptfactuur-flow). */
+export type PlatformIncassoStatus = "pending" | "paid" | "failed";
 
 export interface Club {
   id: string;
@@ -28,6 +30,12 @@ export interface Club {
   postcode: string;
   regio: string;
   is_actief: boolean;
+  /** Aanwezig zodra er ooit een Mollie-klant voor deze club is aangemaakt (migratie 0014). */
+  mollie_customer_id: string | null;
+  /** Aanwezig zodra de club een geldig SEPA-machtiging heeft — bepaalt of automatische incasso mogelijk is. */
+  mollie_mandate_id: string | null;
+  /** 5%-platformfee, real-time opgebouwd bij elk goedgekeurd bonnetje; geïnd door de maandelijkse cron zodra dit >= €2,50 staat. */
+  openstaand_saldo_fee: number;
   created_at: string;
   updated_at: string;
 }
@@ -258,6 +266,24 @@ export interface Factuur {
   status: FactuurStatus;
   aangemaakt_door: string | null;
   aangemaakt_op: string;
+}
+
+/**
+ * Automatische SEPA-incasso via Mollie (migratie 0014) — één rij per
+ * club per maand waarin de rollover-drempel (€2,50) is gehaald en er
+ * dus daadwerkelijk geïncasseerd is. Los van `Factuur` (de handmatige
+ * conceptfactuur-flow).
+ */
+export interface PlatformIncasso {
+  id: string;
+  club_id: string;
+  maand: number;
+  jaar: number;
+  bedrag: number;
+  status: PlatformIncassoStatus;
+  mollie_payment_id: string | null;
+  aangemaakt_op: string;
+  bijgewerkt_op: string;
 }
 
 export interface ClubAdmin {

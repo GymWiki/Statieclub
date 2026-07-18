@@ -227,6 +227,63 @@ bewaard profiel in de browser (geen open "zoek op e-mailadres"-endpoint,
 om het risico van het lekken van namen/adressen via e-mail-enumeratie
 uit te sluiten).
 
+### Automatische incasso via Mollie: rollover-facturatie (`/admin/[slug]/facturatie`)
+
+Naast de handmatige conceptfactuur hierboven staat een **volledig
+geautomatiseerd** tweede spoor, gebouwd op de officiële
+`@mollie/api-client`-SDK (migratie `0014_mollie_facturatie.sql`). De twee
+sporen bestaan bewust naast elkaar — zie de migratie zelf voor de
+onderbouwing waarom er niet in de bestaande `facturen`-tabel is
+geknutseld.
+
+- **Real-time fee-opbouw.** `apply_bonnetje_insert`/
+  `apply_bonnetje_status_change` (dezelfde triggers als hierboven)
+  schrijven bij élk goedgekeurd bonnetje ook 5% van `bedrag_euro` bij op
+  `clubs.openstaand_saldo_fee` — voor beide bronnen (`scan` én
+  `glas_naar_kas`; die service kent hier dus geen uitzondering). Wordt
+  een bonnetje later afgekeurd, dan gaat het bedrag er weer af.
+- **Onboarding: SEPA-mandaat via een €0,01-verificatie.**
+  `POST /api/mollie/create-mandate` maakt een Mollie-klant aan voor de
+  club en start een eenmalige iDeal-betaling van €0,01 met
+  `sequenceType: 'first'`. Zodra die betaling lukt, zet Mollie er
+  automatisch een geldig SEPA-mandaat bij; `POST /api/mollie/webhook`
+  haalt dat mandaat op (`payment.getMandate()`) en zet
+  `clubs.mollie_mandate_id`. Zolang dat veld leeg is, toont
+  `/admin/[slug]/facturatie` alleen de activatieknop.
+- **Mollie-webhook = onbetrouwbare ping.** De webhook-body bevat
+  uitsluitend een payment-`id`, nooit een status — de route vertrouwt
+  dus nooit de request-body zelf, maar haalt de betaling altijd zelf op
+  via `payments.get(id)` met de eigen API-key voordat er iets in
+  Supabase wordt bijgewerkt. Geeft altijd een 2xx terug (ook bij een
+  interne fout) zodat Mollie niet oneindig blijft doorproberen op een
+  permanente fout; fouten worden wél gelogd.
+- **Maandelijkse "rollover"-cron** (`GET /api/cron/monthly-billing`,
+  beveiligd met `Authorization: Bearer <CRON_SECRET>` — Vercel Cron Jobs
+  sturen dit automatisch mee, vandaar `GET` en niet `POST`). Voor elke
+  actieve club: staat `openstaand_saldo_fee` op minimaal €2,50
+  (`ROLLOVER_DREMPEL_EURO` in `lib/mollieConstants.ts`), dan komt er een
+  rij in `platform_incassos`, wordt er een SEPA-incasso
+  (`sequenceType: 'recurring'`) tegen het bestaande mandaat getriggerd
+  en gaat `openstaand_saldo_fee` terug naar 0. Zit een club daaronder,
+  dan gebeurt er niets — het bedrag schuift vanzelf door naar volgende
+  maand. De `unique (club_id, maand, jaar)`-constraint op
+  `platform_incassos` voorkomt dubbel incasseren als de cron per ongeluk
+  twee keer draait. Elke club krijgt hierna een maandrapport via
+  `lib/email.ts`.
+- **`lib/email.ts` is bewust gesimuleerd** — er is geen
+  transactionele e-mailprovider (Resend/Postmark/…) gekoppeld; de
+  "verzending" wordt gestructureerd gelogd. Vervang de body van
+  `verstuurMaandrapport()` door een echte provider-call om dit later
+  "echt" te maken.
+- **`lib/mollieConstants.ts` staat los van `lib/mollie.ts`**: dat laatste
+  importeert de volledige Mollie Node.js-SDK, wat niet in een
+  client-bundel terecht mag komen. `FacturatieOverzicht.tsx` (het
+  dashboard) importeert daarom alleen de constanten, nooit `lib/mollie.ts`
+  zelf.
+- **Nieuwe env-vars** (zie `.env.example`): `MOLLIE_API_KEY`,
+  `NEXT_PUBLIC_SITE_URL` (voor Mollie's redirect-/webhook-URL) en
+  `CRON_SECRET`.
+
 ## Marketing-landingspagina (`app/page.tsx`)
 
 Losgekoppeld van de functionele donor-flow: `/` is een puur marketing-
@@ -750,6 +807,12 @@ Supabase-dashboard van je project:
 - De 5%-platformfactuur is een intern gegenereerde conceptfactuur
   (status `concept`/`verzonden`/`betaald` in de `facturen`-tabel); er
   is geen koppeling met een echte facturatie-/betaalprovider.
+- De Mollie-integratie (`/admin/[slug]/facturatie`, hierboven) is —
+  anders dan de gesimuleerde Glas-naar-Kas-betaalstap — een échte
+  koppeling: zonder een geldige `MOLLIE_API_KEY` (en publiek bereikbare
+  `NEXT_PUBLIC_SITE_URL` voor de webhook) werkt geen van de Mollie-routes.
+  Alleen het maandrapport zelf (`lib/email.ts`) is bewust gesimuleerd —
+  zie de toelichting daarboven.
 - De donateur-statuspagina (`/status/[ophaalverzoekId]`) ververst alleen
   de chatberichten via polling — niet de status van het ophaalverzoek
   zelf. Rondt een team een ophaalactie af terwijl een donateur die
