@@ -1,5 +1,5 @@
 import { Nav } from "@/components/marketing/Nav";
-import { Hero } from "@/components/marketing/Hero";
+import { HeroSelector } from "@/components/marketing/HeroSelector";
 import { ActivityTicker } from "@/components/marketing/ActivityTicker";
 import { RoleSelector } from "@/components/marketing/RoleSelector";
 import { ImpactStats } from "@/components/marketing/ImpactStats";
@@ -15,7 +15,7 @@ export default function HomePage() {
     <>
       <Nav />
       <main>
-        <Hero />
+        <HeroSelector />
         <ActivityTicker />
         <RoleSelector />
         <ImpactStats />

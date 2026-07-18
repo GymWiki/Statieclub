@@ -1,8 +1,9 @@
 "use client";
 
 import { useCallback, useEffect, useRef, useState } from "react";
-import { AlertTriangle, Loader2, Lock, Send } from "lucide-react";
+import { AlertTriangle, Flag, Loader2, Lock, Send } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { ReportModal } from "@/components/ui/ReportModal";
 import type { Bericht, BerichtAfzenderType } from "@/lib/types";
 
 const POLL_INTERVAL_MS = 2500;
@@ -34,6 +35,7 @@ export function ChatWindow({
   const [tekst, setTekst] = useState("");
   const [versturen, setVersturen] = useState(false);
   const [verzendfout, setVerzendfout] = useState<string | null>(null);
+  const [meldingOpen, setMeldingOpen] = useState(false);
   const bodemRef = useRef<HTMLDivElement>(null);
 
   const laadBerichten = useCallback(async () => {
@@ -93,6 +95,15 @@ export function ChatWindow({
 
   return (
     <div className="flex h-[28rem] flex-col overflow-hidden rounded-2xl border border-gray-200 bg-white">
+      <div className="flex items-center justify-end border-b border-gray-100 px-3 py-2">
+        <button
+          type="button"
+          onClick={() => setMeldingOpen(true)}
+          className="flex items-center gap-1.5 rounded-full px-2.5 py-1 text-xs font-medium text-gray-400 transition-colors hover:bg-red-50 hover:text-red-600"
+        >
+          <Flag className="h-3.5 w-3.5" /> Melding maken
+        </button>
+      </div>
       <div className="flex-1 space-y-2.5 overflow-y-auto p-4">
         {ladend && (
           <div className="flex justify-center py-6 text-gray-400">
@@ -167,6 +178,8 @@ export function ChatWindow({
           </div>
         </form>
       )}
+
+      <ReportModal open={meldingOpen} onClose={() => setMeldingOpen(false)} />
     </div>
   );
 }

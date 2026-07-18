@@ -10,7 +10,12 @@ const VRAGEN: { vraag: string; antwoord: string }[] = [
   {
     vraag: "Moet ik thuisblijven tot een team langskomt?",
     antwoord:
-      "Nee — je claimt geen vast tijdstip. Zodra een team jouw adres claimt, sturen ze je vooraf een WhatsApp-berichtje. Je flessen mogen gewoon buiten of bij de deur staan.",
+      "Nee — je claimt geen vast tijdstip. Zodra een team jouw adres claimt, kun je via de veilige, ingebouwde chat afstemmen wanneer het uitkomt. Je flessen mogen gewoon buiten of bij de deur staan.",
+  },
+  {
+    vraag: "Hoe communiceer ik met de ophaler?",
+    antwoord:
+      "Via onze veilige, ingebouwde chat! Je telefoonnummer blijft 100% privé. Zodra je flessen zijn opgehaald, wordt de chat automatisch gesloten en verwijderd.",
   },
   {
     vraag: "Is er een AVG-risico als ik mijn adres deel?",

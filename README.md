@@ -311,6 +311,16 @@ animaties (`animate-mesh-drift`, `animate-radar-ping`) respecteren
 `prefers-reduced-motion` via `lib/motion.ts#useFadeUpVariants` resp.
 Tailwind's `motion-safe:`-variant.
 
+**`HeroSelector` (bovenaan, vervangt het oude statische `Hero`):** drie
+rol-tabs ("Voor Donateurs" / "Voor Clubleden" / "Voor Besturen") boven
+de koptekst — koptekst, subtekst en primaire CTA wisselen per rol via
+een `AnimatePresence`-fade, met een gedeelde `layoutId`-tab-indicator
+die soepel meeschuift. Alleen de donateur-tab toont de postcode-
+zoekbalk (met de radar-ping hierboven); de andere twee tabs linken
+direct door naar hun eigen instapscherm. Dit is bewust een ander patroon
+dan de statische 3-kaarten-`RoleSelector` verderop op de pagina — die
+blijft ernaast bestaan als aparte "wie ben jij"-sectie.
+
 ### Showcase- en proof-secties (conversie/geloofwaardigheid)
 
 Naast Hero/RoleSelector/HowItWorks bevat de landingspagina drie secties
@@ -733,6 +743,16 @@ chat-sessie-laag: `berichten` (migratie 0011) hangt met
   niet meer) — het veld blijft wel bestaan op het ophaalformulier voor
   eventueel toekomstig/administratief gebruik, maar bereikt de
   speler-UI niet langer.
+- **Melding maken (`components/ui/ReportModal.tsx`)**: een "Melding
+  maken"-knop in de `ChatWindow`-header opent een modal met vaste
+  reden-opties (onbeleefd, niet opgedaagd, te jong voor glas, anders)
+  plus een optionele toelichting — bewust vaste opties in plaats van
+  alleen een vrij tekstveld, zodat een melding voor het bestuur meteen
+  scanbaar is. Dit is puur de UI-flow: `ReportModal` accepteert een
+  optionele `onSubmit`-prop om aan een echt endpoint te koppelen; zonder
+  die prop simuleert de modal het versturen (net als
+  `lib/email.ts`-maandrapport verderop) zodat de component ook los van
+  een meldingen-backend bruikbaar is.
 
 ## Lokaal draaien
 
