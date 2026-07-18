@@ -325,6 +325,18 @@ niet uit Supabase opgehaald:
   `bg-slate-50` (niet `bg-white`, zoals `HowItWorks`/`Faq`) zodat er nog
   een lichte scheiding zichtbaar blijft tussen deze sectie en de
   `Faq` erna, ook al zijn beide "licht".
+- **`Footer`** (`components/marketing/Footer.tsx`, `bg-slate-900`,
+  zelfde donkere toon als `ClubPitch`/`WhyBetter`): 4 kolommen
+  (1 op mobiel, 2 op tablet, 4 op desktop) — pitch + copyright,
+  product-links (`#hoe-het-werkt`, `/donateren` voor de Glas-naar-Kas-
+  service, `#prijzen` — dat laatste een nieuw anker op `PricingPromise`),
+  juridische links en bedrijfsgegevens (handelsnaam, KVK/BTW-nummer,
+  contact-e-mail). De juridische links (Algemene Voorwaarden/
+  Privacybeleid/Cookiebeleid) zijn bewust nog `#`-placeholders — er
+  bestaat nog geen echte, juridisch gecontroleerde inhoud voor die
+  pagina's. Een footer met deze links alléén maakt het platform dus
+  nog niet AVG/GDPR-compliant; dat vraagt om daadwerkelijk beleid
+  achter deze links, idealiter met juridische review.
 
 **Bekende afweging:** de Hero-CTA navigeert client-side naar
 `/donateren`, een Server Component die live clubs uit Supabase

@@ -28,7 +28,7 @@ export function PricingPromise() {
   const percentage = useCountUp(95, inView, 1400);
 
   return (
-    <section ref={ref} className="bg-gradient-to-b from-white to-brand-50/60 py-24 sm:py-32">
+    <section id="prijzen" ref={ref} className="scroll-mt-20 bg-gradient-to-b from-white to-brand-50/60 py-24 sm:py-32">
       <div className="mx-auto max-w-6xl px-5 lg:px-8">
         <motion.div
           initial="hidden"
