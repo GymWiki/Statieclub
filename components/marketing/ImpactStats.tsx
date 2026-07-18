@@ -1,9 +1,9 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
-import { motion, useInView, useReducedMotion, type Variants } from "framer-motion";
+import { useRef } from "react";
+import { motion, useInView, type Variants } from "framer-motion";
 import { Recycle, TrendingDown, Heart, type LucideIcon } from "lucide-react";
-import { useFadeUpVariants } from "@/lib/motion";
+import { useFadeUpVariants, useCountUp } from "@/lib/motion";
 import { cn } from "@/lib/utils";
 
 interface Statistiek {
@@ -47,45 +47,18 @@ const STATISTIEKEN: Statistiek[] = [
   },
 ];
 
-/** Telt 0 → target op zodra `actief` waar wordt — zelfde ease-out-curve als AnimatedNumber.tsx. */
-function useCountUp(target: number, actief: boolean, reduced: boolean, duration = 1800) {
-  const [waarde, setWaarde] = useState(0);
-
-  useEffect(() => {
-    if (!actief) return;
-    if (reduced) {
-      setWaarde(target);
-      return;
-    }
-    const start = performance.now();
-    let frame: number;
-    function tick(now: number) {
-      const progress = Math.min(1, (now - start) / duration);
-      const eased = 1 - Math.pow(1 - progress, 3);
-      setWaarde(target * eased);
-      if (progress < 1) frame = requestAnimationFrame(tick);
-    }
-    frame = requestAnimationFrame(tick);
-    return () => cancelAnimationFrame(frame);
-  }, [actief, target, duration, reduced]);
-
-  return waarde;
-}
-
 function StatKaart({
   stat,
   actief,
-  reduced,
   index,
   variants,
 }: {
   stat: Statistiek;
   actief: boolean;
-  reduced: boolean;
   index: number;
   variants: Variants;
 }) {
-  const waarde = useCountUp(stat.target, actief, reduced);
+  const waarde = useCountUp(stat.target, actief);
   const Icon = stat.icoon;
 
   return (
@@ -119,7 +92,6 @@ function StatKaart({
 export function ImpactStats() {
   const ref = useRef(null);
   const inView = useInView(ref, { once: true, margin: "-100px" });
-  const reduced = useReducedMotion();
   const item = useFadeUpVariants();
 
   return (
@@ -143,7 +115,7 @@ export function ImpactStats() {
 
         <div className="mt-14 grid grid-cols-1 gap-5 md:grid-cols-3">
           {STATISTIEKEN.map((stat, i) => (
-            <StatKaart key={stat.label} stat={stat} actief={inView} reduced={!!reduced} index={i} variants={item} />
+            <StatKaart key={stat.label} stat={stat} actief={inView} index={i} variants={item} />
           ))}
         </div>
 

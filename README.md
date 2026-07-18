@@ -55,7 +55,7 @@ expliciet uit elkaar in plaats van één generieke "voor clubs"-link:
 
 ```
 app/
-  page.tsx                        Marketing-landingspagina (Nav/Hero/ActivityTicker/RoleSelector/ImpactStats/HowItWorks/ClubPitch/Faq/Footer)
+  page.tsx                        Marketing-landingspagina (Nav/Hero/ActivityTicker/RoleSelector/ImpactStats/PricingPromise/HowItWorks/ClubPitch/Faq/Footer)
   donateren/page.tsx              Functionele donor-flow (postcode + live clubgrid, met ?postcode=)
   clubs/[slug]/page.tsx           Club-detail + ophaalformulier (donor)
   speler/page.tsx                 Generieke club-zoekpagina voor "Inloggen als Speler"
@@ -287,16 +287,30 @@ niet uit Supabase opgehaald:
   bewust breekt met de rest van de lichte pagina — drie statistieken
   over hoeveel statiegeld er jaarlijks ongeclaimd blijft, die van 0
   optellen naar hun eindwaarde zodra de sectie in beeld scrolt. De
-  telanimatie is een eigen `useCountUp`-hook (dezelfde ease-out-curve
-  als `AnimatedNumber.tsx`, maar getriggerd door Framer Motions
-  `useInView` i.p.v. een waardewijziging) — bewust geen extra
-  dependency (`react-countup`) toegevoegd, want Framer Motion zat er al
-  in. Eén `useInView` op sectieniveau stuurt zowel de fade-in als alle
-  drie de tellers tegelijk aan, zodat ze gelijktijdig lopen i.p.v.
+  telanimatie is een gedeelde `useCountUp`-hook (`lib/motion.ts`,
+  dezelfde ease-out-curve als `AnimatedNumber.tsx`, maar getriggerd door
+  Framer Motions `useInView` i.p.v. een waardewijziging) — bewust geen
+  extra dependency (`react-countup`) toegevoegd, want Framer Motion zat
+  er al in. Eén `useInView` op sectieniveau stuurt zowel de fade-in als
+  alle drie de tellers tegelijk aan, zodat ze gelijktijdig lopen i.p.v.
   willekeurig verspringen per kaart. Bij `prefers-reduced-motion`
   springt elk getal direct naar de eindwaarde. De brontekst onderaan
   ("Statiegeld Nederland" + ILT) is een subtiele, niet-opdringerige
   footnote-stijl (`text-slate-400/70`).
+- **`PricingPromise`** (`components/marketing/PricingPromise.tsx`, "Een
+  eerlijk verdienmodel", direct onder `ImpactStats`): een lichte,
+  glasachtige kaart (`bg-white/70 backdrop-blur-xl`, zelfde recept als de
+  `RoleSelector`-kaarten) die welbewust weer terugkeert naar de lichte
+  pagina na de donkere `ImpactStats`-sectie ervoor. Bewust **geen taart-/
+  donutgrafiek** voor de 95/5-verdeling — twee segmenten lezen daar zwak
+  in, en de 5% is inhoudelijk ook geen gelijkwaardige tweede categorie
+  maar "de rest van de pot". In plaats daarvan een "meter": één
+  percentage (`useCountUp(95, ...)`, gedeeld met `ImpactStats`) met de
+  bestaande `ProgressBar`-component als vulling, en de 95%/5%-uitleg als
+  twee tekstblokken eronder (het 95%-blok uitgelicht met een
+  `bg-brand-50`-kaart, het 5%-blok bewust soberder) — zo blijft de
+  waarde van beide altijd als tekst leesbaar, ook zonder op kleur te
+  hoeven vertrouwen.
 
 **Bekende afweging:** de Hero-CTA navigeert client-side naar
 `/donateren`, een Server Component die live clubs uit Supabase
