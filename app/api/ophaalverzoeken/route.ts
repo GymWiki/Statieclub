@@ -9,6 +9,14 @@ import type { OphaalformulierInput } from "@/lib/types";
  * blijft er 1 donateursrecord bestaan, ongeacht hoe vaak iemand doneert
  * of van club wisselt) en maakt daarna het ophaalverzoek aan.
  *
+ * `type` (optioneel, standaard 'statiegeld'): bij 'glasbak' ("Glas-naar-
+ * Kas") is er geen geschat aantal flessen — in plaats daarvan een vast,
+ * al betaald donatiebedrag. De echte betaalstap is client-side
+ * gesimuleerd (mock iDeal/Tikkie); dit endpoint vertrouwt erop dat de
+ * client alleen aanroept ná die simulatie en zet `vooraf_betaald`
+ * daarom altijd op true voor dit type — er is geen echte betaalprovider
+ * om hier server-side te verifiëren.
+ *
  * Draait server-side met de service-role, zodat donateurs/ophaalverzoeken
  * nooit rechtstreeks vanuit de browser beschreven worden (zie RLS-policies).
  */
@@ -21,22 +29,29 @@ export async function POST(request: NextRequest) {
   const postcode = body.postcode ? normaliseerPostcode(body.postcode) : "";
   const clubId = body.club_id;
   const doelId = body.doel_id;
-  const aantalGeschat = Number(body.aantal_geschat);
+  const type = body.type === "glasbak" ? "glasbak" : "statiegeld";
 
-  if (
-    !naam ||
-    !email ||
-    !adres ||
-    !postcode ||
-    !clubId ||
-    !doelId ||
-    !Number.isFinite(aantalGeschat) ||
-    aantalGeschat <= 0
-  ) {
+  if (!naam || !email || !adres || !postcode || !clubId || !doelId) {
     return NextResponse.json({ error: "Vul alle verplichte velden correct in." }, { status: 400 });
   }
   if (!/^\S+@\S+\.\S+$/.test(email)) {
     return NextResponse.json({ error: "Ongeldig e-mailadres." }, { status: 400 });
+  }
+
+  let aantalGeschat = 1;
+  let donatieBedrag: number | null = null;
+
+  if (type === "glasbak") {
+    donatieBedrag = Number(body.donatie_bedrag);
+    if (!Number.isFinite(donatieBedrag) || donatieBedrag <= 0) {
+      return NextResponse.json({ error: "Kies een donatiebedrag." }, { status: 400 });
+    }
+    donatieBedrag = Math.round(donatieBedrag * 100) / 100;
+  } else {
+    aantalGeschat = Number(body.aantal_geschat);
+    if (!Number.isFinite(aantalGeschat) || aantalGeschat <= 0) {
+      return NextResponse.json({ error: "Vul alle verplichte velden correct in." }, { status: 400 });
+    }
   }
 
   const supabase = createServiceRoleClient();
@@ -89,6 +104,9 @@ export async function POST(request: NextRequest) {
       donateur_id: donateur.id,
       club_id: clubId,
       doel_id: doelId,
+      type,
+      vooraf_betaald: type === "glasbak",
+      donatie_bedrag: donatieBedrag,
       aantal_geschat: aantalGeschat,
       opmerking: body.opmerking?.trim() || null,
     })

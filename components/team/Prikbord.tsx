@@ -36,6 +36,8 @@ export function Prikbord({ clubId, clubSlug }: { clubId: string; clubSlug: strin
   const [geclaimd, setGeclaimd] = useState<Record<string, GeclaimdAdres>>({});
   const [claimBezig, setClaimBezig] = useState(false);
   const [foutmelding, setFoutmelding] = useState<string | null>(null);
+  const [voltooiBezig, setVoltooiBezig] = useState(false);
+  const [voltooiFoutmelding, setVoltooiFoutmelding] = useState<string | null>(null);
   const [nieuweBadges, setNieuweBadges] = useState<Badge[]>([]);
 
   // Ééns per bezoek de locatie van de speler vragen — non-blocking en
@@ -141,6 +143,36 @@ export function Prikbord({ clubId, clubSlug }: { clubId: string; clubSlug: strin
     }
   }
 
+  // "Glas-naar-Kas" rondt een rit direct af — geen bonnetje-scan, het
+  // bedrag is al vooraf betaald. Sluit de sheet meteen na een geslaagde
+  // afronding (het verzoek is nu 'voltooid' en verdwijnt op de
+  // eerstvolgende poll toch van het prikbord).
+  async function voltooiGlas(id: string) {
+    if (!gekozenTeam) return;
+    setVoltooiBezig(true);
+    setVoltooiFoutmelding(null);
+
+    try {
+      const res = await fetch(`/api/ophaalverzoeken/${id}/voltooi-glas`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ team_id: gekozenTeam.id, speler_id: spelerId || null }),
+      });
+      const json = await res.json();
+
+      if (!res.ok) {
+        setVoltooiFoutmelding(json.error);
+        return;
+      }
+
+      if (json.nieuweBadges?.length > 0) setNieuweBadges(json.nieuweBadges);
+      setGeselecteerdId(null);
+      await laadVerzoeken();
+    } finally {
+      setVoltooiBezig(false);
+    }
+  }
+
   const geselecteerd = verzoeken.find((v) => v.id === geselecteerdId) ?? null;
 
   return (
@@ -192,6 +224,9 @@ export function Prikbord({ clubId, clubSlug }: { clubId: string; clubSlug: strin
             claimBezig={claimBezig}
             foutmelding={foutmelding}
             onClaim={() => claim(geselecteerd.id)}
+            onVoltooiGlas={() => voltooiGlas(geselecteerd.id)}
+            voltooiBezig={voltooiBezig}
+            voltooiFoutmelding={voltooiFoutmelding}
             clubSlug={clubSlug}
           />
         )}

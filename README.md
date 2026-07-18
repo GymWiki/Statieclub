@@ -110,6 +110,7 @@ supabase/
   migrations/0010_geolocatie_prikbord.sql  donateurs.lat/lng voor afstand + fuzzy kaartweergave
   migrations/0011_anoniem_chatsysteem.sql  berichten-tabel (speler ↔ donateur per ophaalverzoek)
   migrations/0012_doel_team_scoping.sql  doel_teams-tabel (doelen scopen naar specifieke teams)
+  migrations/0013_glas_naar_kas.sql  "Glas-naar-Kas": ophaalverzoeken.type, teams.glas_service_actief, bonnetjes.bron
   seed.sql                        Demodata voor lokale ontwikkeling
 ```
 
@@ -123,10 +124,10 @@ Volledig relationeel, geen geneste/array/JSON-lijstkolommen — elke
 | `clubs` | naam, slug, postcode, regio |
 | `doelen` | club_id, titel, doelbedrag, opgehaald_bedrag, is_actief |
 | `doel_teams` | doel_id, team_id — welke teams een doel mogen steunen |
-| `teams` | club_id, team_naam, totaal_punten, totaal_opgehaald_euro |
+| `teams` | club_id, team_naam, totaal_punten, totaal_opgehaald_euro, glas_service_actief |
 | `donateurs` | naam, email (uniek), adres, postcode, telefoonnummer |
-| `ophaalverzoeken` | donateur_id, club_id, doel_id, geclaimd_door_team_id, status, aantal_geschat |
-| `bonnetjes` | ophaalverzoek_id (optioneel), team_id, speler_id (optioneel), foto_url, bedrag_euro, punten, status, flag_reden |
+| `ophaalverzoeken` | donateur_id, club_id, doel_id, geclaimd_door_team_id, status, type, vooraf_betaald, donatie_bedrag, aantal_geschat |
+| `bonnetjes` | ophaalverzoek_id (optioneel), team_id, speler_id (optioneel), foto_url (optioneel), bedrag_euro, punten, status, bron, flag_reden |
 | `spelers` | club_id, team_id, naam, avatar_emoji, totaal_opgehaald_euro, totaal_scans, current_week_streak, longest_streak |
 | `badges` | naam, beschrijving, icoon, categorie (Volume/Streak/Actie), criteria_type, criteria_waarde |
 | `speler_badges` | speler_id, badge_id, unlocked_at |
@@ -448,6 +449,56 @@ een UI-conventie:
   blocking, net als bij de speler). Zonder toestemming blijft een
   verzoek gewoon zichtbaar op het prikbord, alleen zonder
   afstand/kaart-cirkel — enkel de postcode-cijfers.
+
+## "Glas-naar-Kas" service: premium upsell zonder bonnetje-scan
+
+Naast de gratis statiegeld-ophaalflow kan een buurtbewoner een vaste
+donatie (€5/€10/€15) vooraf betalen om oud papier of zware
+glasbak-flessen door een team te laten weggooien — geen OCR-scan, geen
+penningmeester-verificatie, en het bedrag gaat **100% naar de clubkas**
+(geen 5%-platformfee, zie hieronder).
+
+- **Schema** (migratie 0013): `ophaalverzoeken.type`
+  (`'statiegeld' | 'glasbak'`), `.vooraf_betaald` en `.donatie_bedrag`.
+  `teams.glas_service_actief` (standaard `false`) is bewust **per
+  team**, niet per club schakelbaar — een club zet dit typisch alleen
+  aan voor oudere teams (zwaar tilwerk, scherven), nooit stilzwijgend
+  voor jeugdteams. `bonnetjes.bron` (`'scan' | 'glas_naar_kas'`)
+  onderscheidt de herkomst; `bonnetjes.foto_url` is nu nullable, met
+  een check-constraint die een foto nog altijd verplicht stelt voor
+  `bron = 'scan'`.
+- **Donateur** (`components/donor/OphaalFlow.tsx`): een type-
+  keuzescherm vóór het bestaande `OphaalForm` — "Statiegeld Ophalen"
+  vs. "Naar de Glas-naar-Kas Service", waarbij die tweede knop alleen
+  verschijnt als minstens één team van de club `glas_service_actief`
+  heeft staan (anders belandt een donatieverzoek nooit bij een team dat
+  het kan claimen). Bij die keuze doorloopt `GlasNaarKasForm.tsx`:
+  donatiegegevens → bedrag kiezen (€5/€10/€15) → een expliciet als
+  **"Gesimuleerd betaalscherm (demo)"** gelabelde mock-iDeal/Tikkie-
+  stap (geen echte betaalprovider) → pas ná die "betaling" wordt `POST
+  /api/ophaalverzoeken` met `type: 'glasbak'` aangeroepen.
+- **Speler-prikbord**: `type: 'glasbak'`-ritten krijgen een opvallende
+  paars/gouden "bounty"-styling in zowel `PrikbordLijst.tsx` (gradient-
+  kaart, 🍾-label, "💰 €X Direct voor de clubkas") als `PrikbordKaart.tsx`
+  (pulserende paarse pin met gouden gloed i.p.v. de normale groene
+  cirkel). Na het claimen toont `OphaalClaimSheet.tsx` een "Glas
+  weggegooid in de wijk-glasbak"-knop in plaats van "Bonnetje
+  uploaden" — die roept `POST /api/ophaalverzoeken/[id]/voltooi-glas`
+  aan, wat gewoon een normale `bonnetjes`-rij aanmaakt (`bron:
+  'glas_naar_kas'`, meteen `status: 'goedgekeurd'`, geen anomaly-
+  detection) zodat de bestaande credit-triggers — team, doel,
+  speler-streak, badges — automatisch en identiek aan een scan lopen.
+  Zowel `GET /api/ophaalverzoeken/nearby` als `POST
+  /api/ophaalverzoeken/[id]/claim` filteren/weigeren `glasbak`-ritten
+  voor een team zonder `glas_service_actief` — client-side (UX) én
+  server-side (afgedwongen), net als bij de doel-teamscoping.
+- **Facturatie**: `bron = 'glas_naar_kas'` telt bewust nooit mee in de
+  5%-platformfee-berekening (`/api/clubs/[slug]/facturen` en het
+  admin-dashboard preview-bedrag filteren er expliciet op) — dat is de
+  "100% naar de clubkas"-belofte, niet enkel marketingtekst.
+- **Admin** (`components/admin/TeamsBeheer.tsx` +
+  `components/ui/Toggle.tsx`): een herbruikbare toggle-switch, één per
+  team, met `PATCH /api/teams/[id]`.
 
 ## Gamification: spelers, badges en streaks
 

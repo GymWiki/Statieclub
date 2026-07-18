@@ -2,14 +2,25 @@
 
 import { FormEvent, useEffect, useState } from "react";
 import Link from "next/link";
-import { CheckCircle2, Loader2, MessageCircleMore, PackageOpen } from "lucide-react";
+import { ArrowLeft, CheckCircle2, Loader2, MessageCircleMore, PackageOpen } from "lucide-react";
 import { Button } from "@/components/ui/Button";
 import { Input, Label } from "@/components/ui/Input";
 import { Card } from "@/components/ui/Card";
 import { laadDonorProfiel, bewaarDonorProfiel } from "@/lib/donorProfile";
 import type { Doel } from "@/lib/types";
 
-export function OphaalForm({ clubId, clubNaam, doelen }: { clubId: string; clubNaam: string; doelen: Doel[] }) {
+export function OphaalForm({
+  clubId,
+  clubNaam,
+  doelen,
+  onTerug,
+}: {
+  clubId: string;
+  clubNaam: string;
+  doelen: Doel[];
+  /** Optioneel — toont een "terug"-link naar de type-keuze (statiegeld vs. Glas-naar-Kas) als deze is meegegeven. */
+  onTerug?: () => void;
+}) {
   const [naam, setNaam] = useState("");
   const [email, setEmail] = useState("");
   const [adres, setAdres] = useState("");
@@ -117,6 +128,11 @@ export function OphaalForm({ clubId, clubNaam, doelen }: { clubId: string; clubN
 
   return (
     <Card className="p-6">
+      {onTerug && (
+        <button onClick={onTerug} className="mb-4 flex items-center gap-1 text-sm font-medium text-gray-500 hover:text-gray-700">
+          <ArrowLeft className="h-4 w-4" /> Terug
+        </button>
+      )}
       {bekendeDonateur && (
         <p className="mb-4 flex items-center gap-2 rounded-lg bg-brand-50 px-3 py-2 text-sm text-brand-700">
           <PackageOpen className="h-4 w-4" />

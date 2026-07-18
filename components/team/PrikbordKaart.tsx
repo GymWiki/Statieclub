@@ -1,6 +1,6 @@
 "use client";
 
-import { cn } from "@/lib/utils";
+import { cn, formatEuro } from "@/lib/utils";
 import { naarMeterOffset, gemiddeldeCoordinaat, type Coordinaat } from "@/lib/geo";
 import type { OphaalverzoekNearby } from "@/lib/types";
 
@@ -67,6 +67,7 @@ export function PrikbordKaart({
         const x = offset.x / meterPerPixel;
         const y = -offset.y / meterPerPixel; // noord = omhoog = negatieve CSS-y
         const geclaimd = item.geclaimd_door_team_id !== null;
+        const isGlasbak = item.type === "glasbak";
 
         return (
           <button
@@ -74,17 +75,23 @@ export function PrikbordKaart({
             onClick={() => onSelecteer(item.id)}
             style={{ left: `calc(50% + ${x}px)`, top: `calc(50% + ${y}px)` }}
             className="absolute -translate-x-1/2 -translate-y-1/2 transition-transform hover:z-20 hover:scale-105"
-            aria-label={`Zone rond postcode ${item.postcode_cijfers}, ${item.aantal_geschat} flessen/blikjes`}
+            aria-label={
+              isGlasbak
+                ? `Glas-naar-Kas rit rond postcode ${item.postcode_cijfers}, ${formatEuro(item.donatie_bedrag ?? 0)}`
+                : `Zone rond postcode ${item.postcode_cijfers}, ${item.aantal_geschat} flessen/blikjes`
+            }
           >
             <span
               className={cn(
                 "flex h-16 w-16 items-center justify-center rounded-full border-2 text-xs font-bold backdrop-blur-sm",
                 geclaimd
                   ? "border-gray-300 bg-gray-300/40 text-gray-500"
-                  : "border-brand-400 bg-brand-400/25 text-brand-700"
+                  : isGlasbak
+                    ? "animate-pulse border-violet-500 bg-violet-400/30 text-violet-700 shadow-[0_0_16px_rgba(245,158,11,0.55)]"
+                    : "border-brand-400 bg-brand-400/25 text-brand-700"
               )}
             >
-              {item.postcode_cijfers}
+              {isGlasbak ? "🍾" : item.postcode_cijfers}
             </span>
           </button>
         );

@@ -5,6 +5,13 @@
 
 export type OphaalverzoekStatus = "open" | "geclaimd" | "ingeleverd" | "voltooid";
 /**
+ * 'glasbak' is de "Glas-naar-Kas"-service: een vooraf betaalde
+ * donatie om oud papier/glas te laten weggooien, zonder bonnetje-scan.
+ */
+export type OphaalverzoekType = "statiegeld" | "glasbak";
+/** Waar een bonnetjes-rij vandaan komt — bepaalt of een foto vereist is en of hij meetelt voor de 5%-platformfee. */
+export type BonnetjeBron = "scan" | "glas_naar_kas";
+/**
  * De applicatie produceert vanaf de anomaly-detection-uitbreiding
  * alleen nog 'in_afwachting_controle' | 'goedgekeurd' | 'afgekeurd'.
  * De DB-enum bevat om historische/compatibiliteitsredenen ook nog
@@ -43,6 +50,8 @@ export interface Team {
   team_naam: string;
   totaal_punten: number;
   totaal_opgehaald_euro: number;
+  /** "Glas-naar-Kas" aan/uit per team — standaard uit, een beheerder zet dit bewust aan (zie migratie 0013). */
+  glas_service_actief: boolean;
   created_at: string;
   updated_at: string;
 }
@@ -86,6 +95,11 @@ export interface Ophaalverzoek {
   /** Losstaand van geclaimd_door_team_id — puur voor persoonlijke buurt-badges. */
   geclaimd_door_speler_id: string | null;
   status: OphaalverzoekStatus;
+  type: OphaalverzoekType;
+  /** True zodra de donatie vooraf (mock iDeal/Tikkie) is afgerekend — alleen bij type 'glasbak'. */
+  vooraf_betaald: boolean;
+  /** Vast donatiebedrag bij type 'glasbak' (€5/€10/€15); null bij 'statiegeld'. */
+  donatie_bedrag: number | null;
   aantal_geschat: number;
   opmerking: string | null;
   aangemaakt_op: string;
@@ -126,6 +140,9 @@ export interface OphaalverzoekMetAdres extends Ophaalverzoek {
 export interface OphaalverzoekNearby {
   id: string;
   status: OphaalverzoekStatus;
+  type: OphaalverzoekType;
+  /** Bij type 'glasbak': het vaste, al betaalde donatiebedrag — publiek, want het is nooit gekoppeld aan een adres. */
+  donatie_bedrag: number | null;
   aantal_geschat: number;
   geclaimd_door_team_id: string | null;
   aangemaakt_op: string;
@@ -153,10 +170,12 @@ export interface Bonnetje {
   ophaalverzoek_id: string | null;
   team_id: string;
   speler_id: string | null;
-  foto_url: string;
+  /** Null bij bron 'glas_naar_kas' — daar is geen foto, het bedrag ligt al vast. */
+  foto_url: string | null;
   bedrag_euro: number;
   punten: number;
   status: BonnetjeStatus;
+  bron: BonnetjeBron;
   flag_reden: string | null;
   geverifieerd_door: string | null;
   geverifieerd_op: string | null;
@@ -268,6 +287,9 @@ export interface OphaalformulierInput {
   lng?: number;
   club_id: string;
   doel_id: string;
-  aantal_geschat: number;
+  /** Weggelaten of 'statiegeld': normale flow, aantal_geschat verplicht. 'glasbak': donatie_bedrag verplicht i.p.v. aantal_geschat. */
+  type?: OphaalverzoekType;
+  aantal_geschat?: number;
+  donatie_bedrag?: number;
   opmerking?: string;
 }

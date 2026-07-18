@@ -12,6 +12,8 @@ interface DonateurRij {
 interface OphaalverzoekRij {
   id: string;
   status: string;
+  type: string;
+  donatie_bedrag: number | null;
   aantal_geschat: number;
   geclaimd_door_team_id: string | null;
   doel_id: string | null;
@@ -41,7 +43,11 @@ interface OphaalverzoekRij {
  * kunnen twee acties naast elkaar lopen zonder dat team A verzoeken
  * van team B's actie op zijn prikbord ziet. Een doel zonder rijen in
  * `doel_teams` (of een verzoek zonder doel) blijft voor alle teams
- * zichtbaar.
+ * zichtbaar. Diezelfde `team_id` filtert ook `type: 'glasbak'`-
+ * verzoeken weg voor een team waarvan `glas_service_actief` uitstaat
+ * (migratie 0013) — die service is bewust per team aan/uit-zetbaar
+ * vanwege het zware tilwerk, dus een jeugdteam mag zo'n rit nooit
+ * eens te zien krijgen.
  */
 export async function GET(request: NextRequest) {
   const { searchParams } = new URL(request.url);
@@ -60,7 +66,9 @@ export async function GET(request: NextRequest) {
 
   const { data: verzoeken, error } = await supabase
     .from("ophaalverzoeken")
-    .select("id, status, aantal_geschat, geclaimd_door_team_id, doel_id, aangemaakt_op, donateurs(postcode, lat, lng)")
+    .select(
+      "id, status, type, donatie_bedrag, aantal_geschat, geclaimd_door_team_id, doel_id, aangemaakt_op, donateurs(postcode, lat, lng)"
+    )
     .eq("club_id", clubId)
     .in("status", ["open", "geclaimd"]);
 
@@ -84,6 +92,17 @@ export async function GET(request: NextRequest) {
         (v) => !v.doel_id || !beperkteDoelIds.has(v.doel_id) || toegestaanVoorTeam.has(v.doel_id)
       );
     }
+
+    if (toegankelijkeVerzoeken.some((v) => v.type === "glasbak")) {
+      const { data: team } = await supabase
+        .from("teams")
+        .select("glas_service_actief")
+        .eq("id", teamId)
+        .maybeSingle();
+      if (!team?.glas_service_actief) {
+        toegankelijkeVerzoeken = toegankelijkeVerzoeken.filter((v) => v.type !== "glasbak");
+      }
+    }
   }
 
   const gesaneerd = toegankelijkeVerzoeken.map((verzoek) => {
@@ -95,6 +114,8 @@ export async function GET(request: NextRequest) {
     return {
       id: verzoek.id,
       status: verzoek.status,
+      type: verzoek.type,
+      donatie_bedrag: verzoek.donatie_bedrag,
       aantal_geschat: verzoek.aantal_geschat,
       geclaimd_door_team_id: verzoek.geclaimd_door_team_id,
       aangemaakt_op: verzoek.aangemaakt_op,

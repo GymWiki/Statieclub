@@ -108,6 +108,22 @@ export function bouwWhatsappUrl(telefoonnummer: string | null | undefined, tekst
 }
 
 // ─────────────────────────────────────────────────────────────
+// "Glas-naar-Kas" service (vooraf betaalde donatie, geen bonnetje-scan)
+// ─────────────────────────────────────────────────────────────
+
+export interface GlasNaarKasOptie {
+  bedrag: number;
+  label: string;
+}
+
+/** Vaste donatiebedragen voor de "Glas-naar-Kas"-service — bewust geen vrij invoerveld, houdt de betaalstap simpel. */
+export const GLAS_NAAR_KAS_OPTIES: GlasNaarKasOptie[] = [
+  { bedrag: 5, label: "Standaard" },
+  { bedrag: 10, label: "Royaal" },
+  { bedrag: 15, label: "Held" },
+];
+
+// ─────────────────────────────────────────────────────────────
 // Anoniem chatsysteem (speler ↔ donateur)
 // ─────────────────────────────────────────────────────────────
 

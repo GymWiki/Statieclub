@@ -28,7 +28,11 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
   // filtert (zie /api/ophaalverzoeken/nearby) — hier serverside
   // afgedwongen, want de prikbord-filter is enkel UX en voorkomt geen
   // rechtstreekse POST naar dit endpoint met een niet-toegelaten team.
-  const { data: teClaimen } = await supabase.from("ophaalverzoeken").select("doel_id").eq("id", id).maybeSingle();
+  const { data: teClaimen } = await supabase
+    .from("ophaalverzoeken")
+    .select("doel_id, type")
+    .eq("id", id)
+    .maybeSingle();
   if (teClaimen?.doel_id) {
     const { data: koppelingen } = await supabase
       .from("doel_teams")
@@ -38,6 +42,19 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
     if (beperkt && !(koppelingen ?? []).some((k) => k.team_id === team_id)) {
       return NextResponse.json(
         { error: "Dit doel is niet opengesteld voor jouw team." },
+        { status: 403 }
+      );
+    }
+  }
+
+  // "Glas-naar-Kas" is bewust per team aan/uit-zetbaar (zwaar tilwerk,
+  // scherven) — een team zonder glas_service_actief mag zo'n rit nooit
+  // claimen, ook niet via een directe POST buiten het prikbord om.
+  if (teClaimen?.type === "glasbak") {
+    const { data: team } = await supabase.from("teams").select("glas_service_actief").eq("id", team_id).maybeSingle();
+    if (!team?.glas_service_actief) {
+      return NextResponse.json(
+        { error: "Jouw team heeft de 'Glas-naar-Kas' service niet geactiveerd." },
         { status: 403 }
       );
     }

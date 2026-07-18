@@ -2,7 +2,7 @@ import Link from "next/link";
 import { notFound } from "next/navigation";
 import { ArrowLeft, Target } from "lucide-react";
 import { createClient } from "@/lib/supabase/server";
-import { OphaalForm } from "@/components/donor/OphaalForm";
+import { OphaalFlow } from "@/components/donor/OphaalFlow";
 import { ProgressBar } from "@/components/ui/ProgressBar";
 import { Card } from "@/components/ui/Card";
 import { formatEuro, formatVoortgang } from "@/lib/utils";
@@ -29,6 +29,16 @@ export default async function ClubDetailPage({ params }: { params: Promise<{ slu
     .order("created_at", { ascending: true });
 
   const actieveDoelen = (doelen as Doel[]) ?? [];
+
+  // "Glas-naar-Kas" alleen aanbieden als er minstens één team is dat
+  // de service heeft aangezet — anders belandt een donatieverzoek
+  // nooit bij een team dat het kan claimen.
+  const { count: glasTeamsAantal } = await supabase
+    .from("teams")
+    .select("id", { count: "exact", head: true })
+    .eq("club_id", club.id)
+    .eq("glas_service_actief", true);
+  const glasServiceBeschikbaar = (glasTeamsAantal ?? 0) > 0;
 
   return (
     <div className="mx-auto max-w-lg px-4 py-8">
@@ -66,7 +76,12 @@ export default async function ClubDetailPage({ params }: { params: Promise<{ slu
 
       {actieveDoelen.length > 0 && (
         <div className="mt-8">
-          <OphaalForm clubId={club.id} clubNaam={club.naam} doelen={actieveDoelen} />
+          <OphaalFlow
+            clubId={club.id}
+            clubNaam={club.naam}
+            doelen={actieveDoelen}
+            glasServiceBeschikbaar={glasServiceBeschikbaar}
+          />
         </div>
       )}
     </div>

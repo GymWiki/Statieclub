@@ -44,10 +44,15 @@ export default async function AdminDashboardPage({ params }: { params: Promise<{
   const laatsteFactuur = facturen?.[0];
   const periodeStart = laatsteFactuur?.periode_eind ?? club.created_at;
 
+  // bron 'glas_naar_kas' telt hier bewust niet mee: die donaties gaan
+  // 100% naar de clubkas, geen platformfee (zie migratie 0013) — dit
+  // "openstaand"-bedrag moet dus exact overeenkomen met wat straks
+  // daadwerkelijk gefactureerd wordt.
   const { data: openBonnetjes } = await service
     .from("bonnetjes")
     .select("bedrag_euro, teams!inner(club_id)")
     .eq("status", "goedgekeurd")
+    .neq("bron", "glas_naar_kas")
     .eq("teams.club_id", club.id)
     .gt("geverifieerd_op", periodeStart);
 

@@ -1,9 +1,10 @@
 "use client";
 
 import Link from "next/link";
-import { Check, Loader2, MapPin, MessageCircleMore, Package, Camera, AlertTriangle } from "lucide-react";
+import { Check, Loader2, MapPin, MessageCircleMore, Package, Camera, AlertTriangle, Wine, Trash2 } from "lucide-react";
 import { Button } from "@/components/ui/Button";
 import { formatAfstand } from "@/lib/geo";
+import { formatEuro } from "@/lib/utils";
 import type { OphaalverzoekNearby } from "@/lib/types";
 
 export interface GeclaimdAdres {
@@ -20,6 +21,11 @@ export interface GeclaimdAdres {
  * toonde (afstand/postcode/aantal) — pas na een geslaagde `onClaim()`
  * komt het adres, de opmerking van de donateur en de link naar de
  * anonieme chat in beeld (géén telefoonnummers/WhatsApp meer).
+ *
+ * Bij `type: 'glasbak'` ("Glas-naar-Kas") is er geen bonnetje-scan
+ * nodig — het bedrag is al vooraf betaald. In plaats van "Bonnetje
+ * uploaden" verschijnt dan "Glas weggegooid in de wijk-glasbak", die
+ * de rit direct afrondt via `onVoltooiGlas`.
  */
 export function OphaalClaimSheet({
   item,
@@ -28,6 +34,9 @@ export function OphaalClaimSheet({
   claimBezig,
   foutmelding,
   onClaim,
+  onVoltooiGlas,
+  voltooiBezig,
+  voltooiFoutmelding,
   clubSlug,
 }: {
   item: OphaalverzoekNearby;
@@ -36,8 +45,13 @@ export function OphaalClaimSheet({
   claimBezig: boolean;
   foutmelding: string | null;
   onClaim: () => void;
+  onVoltooiGlas: () => void;
+  voltooiBezig: boolean;
+  voltooiFoutmelding: string | null;
   clubSlug: string;
 }) {
+  const isGlasbak = item.type === "glasbak";
+
   // Al door een ander team geclaimd: nooit het adres proberen op te halen.
   if (item.status === "geclaimd" && !jouwClaim) {
     return (
@@ -69,6 +83,12 @@ export function OphaalClaimSheet({
   if (geclaimdAdres) {
     return (
       <div className="space-y-4">
+        {isGlasbak && (
+          <p className="flex items-center gap-1.5 rounded-lg bg-amber-50 px-3 py-2 text-sm font-semibold text-amber-700">
+            💰 {formatEuro(item.donatie_bedrag ?? 0)} direct voor de clubkas — al betaald
+          </p>
+        )}
+
         <div className="flex items-start gap-2">
           <MapPin className="mt-0.5 h-4 w-4 shrink-0 text-brand-600" />
           <div className="text-sm">
@@ -85,17 +105,26 @@ export function OphaalClaimSheet({
           </p>
         )}
 
+        {voltooiFoutmelding && <p className="text-sm text-red-600">{voltooiFoutmelding}</p>}
+
         <div className="flex gap-2">
           <Link href={`/club/${clubSlug}/rit/${item.id}/chat`} className="flex-1">
             <Button size="sm" className="w-full">
               <MessageCircleMore className="h-4 w-4" /> Chat met bewoner
             </Button>
           </Link>
-          <Link href={`/club/${clubSlug}/upload?verzoek=${item.id}`} className="flex-1">
-            <Button size="sm" variant="secondary" className="w-full">
-              <Camera className="h-4 w-4" /> Bonnetje uploaden
+          {isGlasbak ? (
+            <Button size="sm" variant="secondary" className="flex-1" disabled={voltooiBezig} onClick={onVoltooiGlas}>
+              {voltooiBezig ? <Loader2 className="h-4 w-4 animate-spin" /> : <Trash2 className="h-4 w-4" />}
+              Glas weggegooid in de wijk-glasbak
             </Button>
-          </Link>
+          ) : (
+            <Link href={`/club/${clubSlug}/upload?verzoek=${item.id}`} className="flex-1">
+              <Button size="sm" variant="secondary" className="w-full">
+                <Camera className="h-4 w-4" /> Bonnetje uploaden
+              </Button>
+            </Link>
+          )}
         </div>
       </div>
     );
@@ -105,15 +134,26 @@ export function OphaalClaimSheet({
   return (
     <div className="space-y-4">
       <div className="space-y-1.5">
+        {isGlasbak && (
+          <p className="flex items-center gap-1 text-xs font-bold uppercase tracking-wide text-violet-600">
+            <Wine className="h-3.5 w-3.5" /> 🍾 Glas-naar-Kas Rit
+          </p>
+        )}
         <p className="flex items-center gap-2 text-sm text-gray-700">
           <MapPin className="h-4 w-4 shrink-0 text-gray-400" />
           {item.afstand_meters !== null ? formatAfstand(item.afstand_meters) : "Afstand onbekend"}
           <span className="text-gray-300">·</span>
           <span className="text-gray-500">Postcode {item.postcode_cijfers}</span>
         </p>
-        <p className="flex items-center gap-1.5 text-sm text-gray-600">
-          <Package className="h-4 w-4 text-gray-400" /> ± {item.aantal_geschat} flessen/blikjes
-        </p>
+        {isGlasbak ? (
+          <p className="flex items-center gap-1.5 text-sm font-semibold text-amber-700">
+            💰 {formatEuro(item.donatie_bedrag ?? 0)} Direct voor de clubkas
+          </p>
+        ) : (
+          <p className="flex items-center gap-1.5 text-sm text-gray-600">
+            <Package className="h-4 w-4 text-gray-400" /> ± {item.aantal_geschat} flessen/blikjes
+          </p>
+        )}
       </div>
 
       <p className="text-xs text-gray-400">
