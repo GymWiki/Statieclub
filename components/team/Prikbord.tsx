@@ -31,7 +31,6 @@ export function Prikbord({ clubId, clubSlug }: { clubId: string; clubSlug: strin
   const [ladend, setLadend] = useState(true);
 
   const [spelerLocatie, setSpelerLocatie] = useState<Coordinaat | null>(null);
-  const [locatieOpgevraagd, setLocatieOpgevraagd] = useState(false);
 
   const [geselecteerdId, setGeselecteerdId] = useState<string | null>(null);
   const [geclaimd, setGeclaimd] = useState<Record<string, GeclaimdAdres>>({});
@@ -40,26 +39,20 @@ export function Prikbord({ clubId, clubSlug }: { clubId: string; clubSlug: strin
   const [nieuweBadges, setNieuweBadges] = useState<Badge[]>([]);
 
   // Ééns per bezoek de locatie van de speler vragen — non-blocking en
-  // optioneel: zonder toestemming werkt het prikbord gewoon door, dan
-  // toont de lijst alleen geen afstand en valt de kaart terug op het
-  // zwaartepunt van de zones.
+  // optioneel. De lijst/kaart laadt hier bewust NIET op (zie
+  // laadVerzoeken hieronder): geolocatie kan enkele seconden duren (of
+  // helemaal nooit toestemming krijgen), en de prikbord-data heeft die
+  // niet nodig om te tonen — enkel om er een afstand bij te zetten.
   useEffect(() => {
-    if (typeof navigator === "undefined" || !navigator.geolocation) {
-      setLocatieOpgevraagd(true);
-      return;
-    }
+    if (typeof navigator === "undefined" || !navigator.geolocation) return;
     navigator.geolocation.getCurrentPosition(
-      (positie) => {
-        setSpelerLocatie({ lat: positie.coords.latitude, lng: positie.coords.longitude });
-        setLocatieOpgevraagd(true);
-      },
-      () => setLocatieOpgevraagd(true),
+      (positie) => setSpelerLocatie({ lat: positie.coords.latitude, lng: positie.coords.longitude }),
+      () => {},
       { timeout: 8000 }
     );
   }, []);
 
   const laadVerzoeken = useCallback(async () => {
-    if (!locatieOpgevraagd) return;
     const params = new URLSearchParams({ club_id: clubId });
     if (spelerLocatie) {
       params.set("lat", String(spelerLocatie.lat));
@@ -71,7 +64,7 @@ export function Prikbord({ clubId, clubSlug }: { clubId: string; clubSlug: strin
       setVerzoeken(json.ophaalverzoeken ?? []);
     }
     setLadend(false);
-  }, [clubId, spelerLocatie, locatieOpgevraagd]);
+  }, [clubId, spelerLocatie]);
 
   useEffect(() => {
     laadVerzoeken();

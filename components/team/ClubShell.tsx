@@ -24,7 +24,10 @@ export function ClubShell({
   }
 
   const scanPad = `/club/${clubSlug}/scan-eigen`;
-  const toonScanFab = pathname !== scanPad;
+  // Ook verbergen op een ritchat-scherm: de FAB zou daar het
+  // verstuur-knopje van de chat overlappen.
+  const opChatscherm = pathname?.startsWith(`/club/${clubSlug}/rit/`) ?? false;
+  const toonScanFab = pathname !== scanPad && !opChatscherm;
 
   return (
     <div className="min-h-dvh pb-20">

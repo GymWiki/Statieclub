@@ -606,3 +606,15 @@ Supabase-dashboard van je project:
 - De 5%-platformfactuur is een intern gegenereerde conceptfactuur
   (status `concept`/`verzonden`/`betaald` in de `facturen`-tabel); er
   is geen koppeling met een echte facturatie-/betaalprovider.
+- De donateur-statuspagina (`/status/[ophaalverzoekId]`) ververst alleen
+  de chatberichten via polling — niet de status van het ophaalverzoek
+  zelf. Rondt een team een ophaalactie af terwijl een donateur die
+  pagina open heeft staan, dan ziet die pas na een handmatige refresh
+  dat de chat gesloten is. Geen dataverlies, wel een moment van
+  verouderde info; een volgende stap zou dit veld meenemen in dezelfde
+  polling-cyclus als de berichten.
+- Er is nog geen overzicht van eerder afgeronde ophaalacties per speler
+  ("mijn geschiedenis") — enkel de lopende, geclaimde adressen zijn
+  zichtbaar (`GET /api/ophaalverzoeken/mijn-team`). De cumulatieve
+  stats op het profiel (totaal opgehaald, streak) blijven wel bewaard,
+  alleen de individuele ritten zelf niet als lijst.

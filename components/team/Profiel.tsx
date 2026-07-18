@@ -1,9 +1,10 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { Flame, Loader2 } from "lucide-react";
+import { Flame, Loader2, RefreshCcw } from "lucide-react";
 import { createClient } from "@/lib/supabase/client";
 import { Card } from "@/components/ui/Card";
+import { Button } from "@/components/ui/Button";
 import { AnimatedNumber } from "@/components/ui/AnimatedNumber";
 import { BadgesGrid } from "@/components/team/BadgesGrid";
 import { useTeam } from "@/components/team/TeamContext";
@@ -13,46 +14,95 @@ import type { Badge, BadgeMetStatus, Speler } from "@/lib/types";
 
 const AVATAR_OPTIES = ["🙂", "😎", "🦁", "🐯", "🐼", "🦊", "🐸", "🚀", "⚡", "🔥", "🏆", "⚽"];
 
+/** Hoe vaak we opnieuw proberen als de speler-rij nog niet bestaat (zie hieronder). */
+const MAX_POGINGEN = 15;
+const POGING_INTERVAL_MS = 1000;
+
 export function Profiel() {
   const { gekozenTeam, spelerId } = useTeam();
   const [speler, setSpeler] = useState<Speler | null>(null);
   const [badges, setBadges] = useState<Badge[]>([]);
   const [ontgrendeld, setOntgrendeld] = useState<Map<string, string>>(new Map());
   const [ladend, setLadend] = useState(true);
+  const [nietGevonden, setNietGevonden] = useState(false);
   const [avatarOpen, setAvatarOpen] = useState(false);
+  const [herlaadTeller, setHerlaadTeller] = useState(0);
 
   useEffect(() => {
+    setLadend(true);
+    setNietGevonden(false);
     if (!spelerId) return;
-    const supabase = createClient();
 
-    (async () => {
+    const supabase = createClient();
+    // `actief` wordt synchroon op false gezet door de cleanup hieronder
+    // — dat mag niet afhangen van een async keten die nog aan het
+    // resolven is, anders blijft een oude poll-lus na een remount of
+    // een nieuwe poging gewoon doorlopen.
+    let actief = true;
+    let poging = 0;
+    let timeoutId: ReturnType<typeof setTimeout> | undefined;
+
+    async function stap() {
       const [{ data: spelerData }, { data: badgeData }, { data: spelerBadgeData }] = await Promise.all([
         supabase.from("spelers").select("*").eq("id", spelerId).maybeSingle(),
         supabase.from("badges").select("*").order("volgorde"),
         supabase.from("speler_badges").select("badge_id, unlocked_at").eq("speler_id", spelerId),
       ]);
+      if (!actief) return;
 
-      setSpeler(spelerData as Speler | null);
       setBadges((badgeData as Badge[]) ?? []);
       setOntgrendeld(
-        new Map(((spelerBadgeData ?? []) as { badge_id: string; unlocked_at: string }[]).map((r) => [r.badge_id, r.unlocked_at]))
+        new Map(
+          ((spelerBadgeData ?? []) as { badge_id: string; unlocked_at: string }[]).map((r) => [
+            r.badge_id,
+            r.unlocked_at,
+          ])
+        )
       );
-      setLadend(false);
-    })();
+
+      if (spelerData) {
+        setSpeler(spelerData as Speler);
+        setLadend(false);
+        setNietGevonden(false);
+        return;
+      }
+
+      // De speler-rij wordt async aangemaakt zodra een team gekozen
+      // wordt (fire-and-forget sync in TeamContext) — die kan hier nog
+      // niet klaar zijn. Kort opnieuw proberen i.p.v. voor altijd te
+      // blijven laden.
+      poging += 1;
+      if (poging >= MAX_POGINGEN) {
+        setLadend(false);
+        setNietGevonden(true);
+        return;
+      }
+      timeoutId = setTimeout(() => {
+        if (actief) stap();
+      }, POGING_INTERVAL_MS);
+    }
+
+    stap();
 
     const channel = supabase
       .channel(`speler-${spelerId}`)
       .on(
         "postgres_changes",
-        { event: "UPDATE", schema: "public", table: "spelers", filter: `id=eq.${spelerId}` },
-        (payload) => setSpeler(payload.new as Speler)
+        { event: "*", schema: "public", table: "spelers", filter: `id=eq.${spelerId}` },
+        (payload) => {
+          setSpeler(payload.new as Speler);
+          setLadend(false);
+          setNietGevonden(false);
+        }
       )
       .subscribe();
 
     return () => {
+      actief = false;
+      if (timeoutId) clearTimeout(timeoutId);
       supabase.removeChannel(channel);
     };
-  }, [spelerId]);
+  }, [spelerId, herlaadTeller]);
 
   async function kiesAvatar(emoji: string) {
     setAvatarOpen(false);
@@ -62,6 +112,19 @@ export function Profiel() {
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ avatar_emoji: emoji }),
     });
+  }
+
+  if (nietGevonden) {
+    return (
+      <div className="flex flex-col items-center gap-3 py-16 text-center">
+        <p className="text-sm text-gray-500">
+          Kon je profiel niet laden. Probeer het opnieuw, of wissel van team en kies opnieuw.
+        </p>
+        <Button variant="secondary" onClick={() => setHerlaadTeller((n) => n + 1)}>
+          <RefreshCcw className="h-4 w-4" /> Opnieuw proberen
+        </Button>
+      </div>
+    );
   }
 
   if (ladend || !speler) {

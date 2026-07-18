@@ -5,7 +5,8 @@ import { createServiceRoleClient } from "@/lib/supabase/server";
  * GET /api/ophaalverzoeken/mijn-team?team_id=...
  * Lijst van adressen die dit team heeft geclaimd maar nog niet heeft
  * ingeleverd — met het volledige adres, want claimen = het recht
- * krijgen om dat adres te zien en te bezoeken.
+ * krijgen om dat adres te zien en te bezoeken. `telefoonnummer` zit
+ * hier bewust niet in: contact loopt via het anonieme chatsysteem.
  */
 export async function GET(request: NextRequest) {
   const teamId = request.nextUrl.searchParams.get("team_id");
@@ -16,7 +17,7 @@ export async function GET(request: NextRequest) {
   const supabase = createServiceRoleClient();
   const { data, error } = await supabase
     .from("ophaalverzoeken")
-    .select("*, donateurs(naam, adres, postcode, telefoonnummer)")
+    .select("*, donateurs(naam, adres, postcode)")
     .eq("geclaimd_door_team_id", teamId)
     .eq("status", "geclaimd")
     .order("geclaimd_op", { ascending: true });

@@ -1,7 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useRef, useState } from "react";
-import { Loader2, Lock, Send } from "lucide-react";
+import { AlertTriangle, Loader2, Lock, Send } from "lucide-react";
 import { cn } from "@/lib/utils";
 import type { Bericht, BerichtAfzenderType } from "@/lib/types";
 
@@ -33,6 +33,7 @@ export function ChatWindow({
   const [ladend, setLadend] = useState(true);
   const [tekst, setTekst] = useState("");
   const [versturen, setVersturen] = useState(false);
+  const [verzendfout, setVerzendfout] = useState<string | null>(null);
   const bodemRef = useRef<HTMLDivElement>(null);
 
   const laadBerichten = useCallback(async () => {
@@ -60,6 +61,7 @@ export function ChatWindow({
     if (!bericht || gesloten || versturen) return;
 
     setVersturen(true);
+    setVerzendfout(null);
     setTekst("");
     try {
       const res = await fetch("/api/berichten", {
@@ -71,7 +73,19 @@ export function ChatWindow({
           bericht_tekst: bericht,
         }),
       });
-      if (res.ok) await laadBerichten();
+
+      if (!res.ok) {
+        const json = await res.json().catch(() => null);
+        setVerzendfout(json?.error ?? "Bericht kon niet worden verstuurd. Probeer het opnieuw.");
+        // Niet klakkeloos overschrijven als er intussen alweer iets nieuws getypt is.
+        setTekst((huidige) => huidige || bericht);
+        return;
+      }
+
+      await laadBerichten();
+    } catch {
+      setVerzendfout("Kon geen verbinding maken. Probeer het opnieuw.");
+      setTekst((huidige) => huidige || bericht);
     } finally {
       setVersturen(false);
     }
@@ -128,22 +142,29 @@ export function ChatWindow({
           <Lock className="h-4 w-4 shrink-0" /> Deze ophaalactie is afgerond. De chat is gesloten.
         </div>
       ) : (
-        <form onSubmit={verstuur} className="flex items-center gap-2 border-t border-gray-200 p-3">
-          <input
-            value={tekst}
-            onChange={(e) => setTekst(e.target.value)}
-            placeholder="Typ een bericht…"
-            maxLength={500}
-            className="flex-1 rounded-full border border-gray-300 px-4 py-2.5 text-sm focus:border-brand-500 focus:outline-none focus:ring-2 focus:ring-brand-500/20"
-          />
-          <button
-            type="submit"
-            disabled={!tekst.trim() || versturen}
-            aria-label="Verstuur bericht"
-            className="grid h-10 w-10 shrink-0 place-items-center rounded-full bg-brand-600 text-white transition-opacity disabled:opacity-40"
-          >
-            {versturen ? <Loader2 className="h-4 w-4 animate-spin" /> : <Send className="h-4 w-4" />}
-          </button>
+        <form onSubmit={verstuur} className="border-t border-gray-200 p-3">
+          {verzendfout && (
+            <p className="mb-2 flex items-center gap-1.5 text-xs text-red-600">
+              <AlertTriangle className="h-3.5 w-3.5 shrink-0" /> {verzendfout}
+            </p>
+          )}
+          <div className="flex items-center gap-2">
+            <input
+              value={tekst}
+              onChange={(e) => setTekst(e.target.value)}
+              placeholder="Typ een bericht…"
+              maxLength={500}
+              className="flex-1 rounded-full border border-gray-300 px-4 py-2.5 text-sm focus:border-brand-500 focus:outline-none focus:ring-2 focus:ring-brand-500/20"
+            />
+            <button
+              type="submit"
+              disabled={!tekst.trim() || versturen}
+              aria-label="Verstuur bericht"
+              className="grid h-10 w-10 shrink-0 place-items-center rounded-full bg-brand-600 text-white transition-opacity disabled:opacity-40"
+            >
+              {versturen ? <Loader2 className="h-4 w-4 animate-spin" /> : <Send className="h-4 w-4" />}
+            </button>
+          </div>
         </form>
       )}
     </div>
