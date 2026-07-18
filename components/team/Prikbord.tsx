@@ -58,13 +58,16 @@ export function Prikbord({ clubId, clubSlug }: { clubId: string; clubSlug: strin
       params.set("lat", String(spelerLocatie.lat));
       params.set("lng", String(spelerLocatie.lng));
     }
+    if (gekozenTeam?.id) {
+      params.set("team_id", gekozenTeam.id);
+    }
     const res = await fetch(`/api/ophaalverzoeken/nearby?${params.toString()}`);
     if (res.ok) {
       const json = await res.json();
       setVerzoeken(json.ophaalverzoeken ?? []);
     }
     setLadend(false);
-  }, [clubId, spelerLocatie]);
+  }, [clubId, spelerLocatie, gekozenTeam?.id]);
 
   useEffect(() => {
     laadVerzoeken();

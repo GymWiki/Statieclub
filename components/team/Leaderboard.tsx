@@ -8,7 +8,7 @@ import { ProgressBar } from "@/components/ui/ProgressBar";
 import { AnimatedNumber } from "@/components/ui/AnimatedNumber";
 import { cn, formatEuro, formatVoortgang } from "@/lib/utils";
 import { useTeam } from "@/components/team/TeamContext";
-import type { Doel, Speler, Team } from "@/lib/types";
+import type { Doel, DoelMetTeams, Speler, Team } from "@/lib/types";
 
 const medailleKleur = ["text-yellow-500", "text-gray-400", "text-amber-700"];
 
@@ -27,12 +27,12 @@ export function Leaderboard({
 }: {
   clubId: string;
   initialTeams: Team[];
-  initialDoelen: Doel[];
+  initialDoelen: DoelMetTeams[];
   initialTopSpelers: Speler[];
   klapperVanDeWeek: KlapperVanDeWeek | null;
 }) {
   const [teams, setTeams] = useState<Team[]>(initialTeams);
-  const [doelen, setDoelen] = useState<Doel[]>(initialDoelen);
+  const [doelen, setDoelen] = useState<DoelMetTeams[]>(initialDoelen);
   const [topSpelers, setTopSpelers] = useState<Speler[]>(initialTopSpelers);
   const { gekozenTeam } = useTeam();
 
@@ -78,16 +78,24 @@ export function Leaderboard({
 
   const gesorteerd = [...teams].sort((a, b) => b.totaal_punten - a.totaal_punten);
 
+  // Team-scoping (migratie 0012): een doel met een lege team_ids-lijst
+  // is open voor alle teams; anders alleen tonen als het gekozen team
+  // erin voorkomt. Zo blijven twee parallelle acties voor
+  // verschillende teams gescheiden op elkaars scorebord.
+  const zichtbareDoelen = doelen.filter(
+    (d) => d.team_ids.length === 0 || (gekozenTeam && d.team_ids.includes(gekozenTeam.id))
+  );
+
   return (
     <div className="mx-auto max-w-lg space-y-3 p-4">
       <h1 className="text-lg font-bold text-gray-900">Live scorebord</h1>
 
-      {doelen.length > 0 && (
+      {zichtbareDoelen.length > 0 && (
         <Card className="space-y-3 p-4">
           <p className="flex items-center gap-1.5 text-sm font-bold text-gray-900">
             <Target className="h-4 w-4 text-brand-600" /> Waar we samen voor sparen
           </p>
-          {doelen.map((doel) => {
+          {zichtbareDoelen.map((doel) => {
             const percentage = formatVoortgang(doel.opgehaald_bedrag, doel.doelbedrag);
             return (
               <div key={doel.id} className="space-y-1.5">

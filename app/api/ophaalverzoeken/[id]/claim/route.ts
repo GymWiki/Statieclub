@@ -24,6 +24,25 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
 
   const supabase = createServiceRoleClient();
 
+  // Zelfde team-eligibiliteit als het prikbord al client-side
+  // filtert (zie /api/ophaalverzoeken/nearby) — hier serverside
+  // afgedwongen, want de prikbord-filter is enkel UX en voorkomt geen
+  // rechtstreekse POST naar dit endpoint met een niet-toegelaten team.
+  const { data: teClaimen } = await supabase.from("ophaalverzoeken").select("doel_id").eq("id", id).maybeSingle();
+  if (teClaimen?.doel_id) {
+    const { data: koppelingen } = await supabase
+      .from("doel_teams")
+      .select("team_id")
+      .eq("doel_id", teClaimen.doel_id);
+    const beperkt = (koppelingen ?? []).length > 0;
+    if (beperkt && !(koppelingen ?? []).some((k) => k.team_id === team_id)) {
+      return NextResponse.json(
+        { error: "Dit doel is niet opengesteld voor jouw team." },
+        { status: 403 }
+      );
+    }
+  }
+
   const { data: updated, error } = await supabase
     .from("ophaalverzoeken")
     .update({ geclaimd_door_team_id: team_id, geclaimd_door_speler_id: speler_id ?? null })

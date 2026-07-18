@@ -1,7 +1,7 @@
 import { notFound } from "next/navigation";
 import { createClient, createServiceRoleClient } from "@/lib/supabase/server";
 import { Leaderboard, type KlapperVanDeWeek } from "@/components/team/Leaderboard";
-import type { Club, Doel, Speler, Team } from "@/lib/types";
+import type { Club, Doel, DoelMetTeams, Speler, Team } from "@/lib/types";
 
 export default async function LeaderboardPage({ params }: { params: Promise<{ slug: string }> }) {
   const { slug } = await params;
@@ -18,6 +18,21 @@ export default async function LeaderboardPage({ params }: { params: Promise<{ sl
     .eq("club_id", club.id)
     .eq("is_actief", true)
     .order("created_at", { ascending: true });
+
+  // Team-scoping (migratie 0012): een doel zonder rijen in doel_teams
+  // blijft voor alle teams zichtbaar. Client-side gefilterd (zie
+  // Leaderboard.tsx) op basis van het lokaal gekozen team, want dat is
+  // hier server-side niet bekend (geen login, localStorage-only).
+  const doelIds = ((doelen as Doel[]) ?? []).map((d) => d.id);
+  const { data: doelTeamKoppelingen } =
+    doelIds.length > 0
+      ? await supabase.from("doel_teams").select("doel_id, team_id").in("doel_id", doelIds)
+      : { data: [] };
+
+  const doelenMetTeams: DoelMetTeams[] = ((doelen as Doel[]) ?? []).map((doel) => ({
+    ...doel,
+    team_ids: (doelTeamKoppelingen ?? []).filter((k) => k.doel_id === doel.id).map((k) => k.team_id),
+  }));
 
   const { data: topSpelers } = await supabase
     .from("spelers")
@@ -58,7 +73,7 @@ export default async function LeaderboardPage({ params }: { params: Promise<{ sl
     <Leaderboard
       clubId={club.id}
       initialTeams={(teams as Team[]) ?? []}
-      initialDoelen={(doelen as Doel[]) ?? []}
+      initialDoelen={doelenMetTeams}
       initialTopSpelers={(topSpelers as Speler[]) ?? []}
       klapperVanDeWeek={klapperVanDeWeek}
     />

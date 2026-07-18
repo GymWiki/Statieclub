@@ -14,6 +14,7 @@ interface OphaalverzoekRij {
   status: string;
   aantal_geschat: number;
   geclaimd_door_team_id: string | null;
+  doel_id: string | null;
   aangemaakt_op: string;
   donateurs: DonateurRij;
 }
@@ -34,10 +35,18 @@ interface OphaalverzoekRij {
  * (150-300m), enkel bruikbaar om een globale zone op de mock-kaart te
  * tekenen. Het echte adres verschijnt pas via `POST
  * /api/ophaalverzoeken/[id]/claim`, ná een geslaagde claim.
+ *
+ * `team_id` (optioneel) filtert verzoeken waarvan het gekoppelde doel
+ * beperkt is tot specifieke teams (`doel_teams`, migratie 0012) — zo
+ * kunnen twee acties naast elkaar lopen zonder dat team A verzoeken
+ * van team B's actie op zijn prikbord ziet. Een doel zonder rijen in
+ * `doel_teams` (of een verzoek zonder doel) blijft voor alle teams
+ * zichtbaar.
  */
 export async function GET(request: NextRequest) {
   const { searchParams } = new URL(request.url);
   const clubId = searchParams.get("club_id");
+  const teamId = searchParams.get("team_id");
   const spelerLat = Number(searchParams.get("lat"));
   const spelerLng = Number(searchParams.get("lng"));
   const heeftSpelerLocatie = Number.isFinite(spelerLat) && Number.isFinite(spelerLng);
@@ -51,7 +60,7 @@ export async function GET(request: NextRequest) {
 
   const { data: verzoeken, error } = await supabase
     .from("ophaalverzoeken")
-    .select("id, status, aantal_geschat, geclaimd_door_team_id, aangemaakt_op, donateurs(postcode, lat, lng)")
+    .select("id, status, aantal_geschat, geclaimd_door_team_id, doel_id, aangemaakt_op, donateurs(postcode, lat, lng)")
     .eq("club_id", clubId)
     .in("status", ["open", "geclaimd"]);
 
@@ -59,7 +68,25 @@ export async function GET(request: NextRequest) {
     return NextResponse.json({ error: error.message }, { status: 500 });
   }
 
-  const gesaneerd = ((verzoeken ?? []) as unknown as OphaalverzoekRij[]).map((verzoek) => {
+  let toegankelijkeVerzoeken = (verzoeken ?? []) as unknown as OphaalverzoekRij[];
+
+  if (teamId) {
+    const doelIds = Array.from(
+      new Set(toegankelijkeVerzoeken.map((v) => v.doel_id).filter((id): id is string => id !== null))
+    );
+    if (doelIds.length > 0) {
+      const { data: koppelingen } = await supabase.from("doel_teams").select("doel_id, team_id").in("doel_id", doelIds);
+      const beperkteDoelIds = new Set((koppelingen ?? []).map((k) => k.doel_id));
+      const toegestaanVoorTeam = new Set(
+        (koppelingen ?? []).filter((k) => k.team_id === teamId).map((k) => k.doel_id)
+      );
+      toegankelijkeVerzoeken = toegankelijkeVerzoeken.filter(
+        (v) => !v.doel_id || !beperkteDoelIds.has(v.doel_id) || toegestaanVoorTeam.has(v.doel_id)
+      );
+    }
+  }
+
+  const gesaneerd = toegankelijkeVerzoeken.map((verzoek) => {
     const donateurLocatie: Coordinaat | null =
       verzoek.donateurs.lat !== null && verzoek.donateurs.lng !== null
         ? { lat: verzoek.donateurs.lat, lng: verzoek.donateurs.lng }

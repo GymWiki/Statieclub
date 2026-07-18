@@ -1,13 +1,13 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { Wallet, Target } from "lucide-react";
+import { Wallet, Target, Users } from "lucide-react";
 import { createClient } from "@/lib/supabase/client";
 import { Card } from "@/components/ui/Card";
 import { ProgressBar } from "@/components/ui/ProgressBar";
 import { AnimatedNumber } from "@/components/ui/AnimatedNumber";
 import { formatEuro, formatVoortgang } from "@/lib/utils";
-import type { Club, Doel, Team } from "@/lib/types";
+import type { Club, Doel, DoelMetTeams, Team } from "@/lib/types";
 
 export function SaldoOverzicht({
   club,
@@ -16,10 +16,11 @@ export function SaldoOverzicht({
 }: {
   club: Club;
   initialTeams: Team[];
-  initialDoelen: Doel[];
+  initialDoelen: DoelMetTeams[];
 }) {
   const [teams, setTeams] = useState<Team[]>(initialTeams);
-  const [doelen, setDoelen] = useState<Doel[]>(initialDoelen);
+  const [doelen, setDoelen] = useState<DoelMetTeams[]>(initialDoelen);
+  const teamNaamPerId = new Map(teams.map((t) => [t.id, t.team_naam]));
 
   useEffect(() => {
     const supabase = createClient();
@@ -77,6 +78,12 @@ export function SaldoOverzicht({
                   <ProgressBar percentage={percentage} />
                   <p className="text-xs text-gray-500">
                     {formatEuro(doel.opgehaald_bedrag)} van {formatEuro(doel.doelbedrag)} ({percentage}%)
+                  </p>
+                  <p className="flex items-center gap-1 text-xs text-gray-400">
+                    <Users className="h-3 w-3" />
+                    {doel.team_ids.length === 0
+                      ? "Alle teams"
+                      : doel.team_ids.map((id) => teamNaamPerId.get(id) ?? "onbekend team").join(", ")}
                   </p>
                 </div>
               );

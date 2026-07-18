@@ -2,7 +2,7 @@ import { ShieldOff } from "lucide-react";
 import { createServiceRoleClient } from "@/lib/supabase/server";
 import { vereisClubToegang } from "@/lib/adminAuth";
 import { DoelenBeheer } from "@/components/admin/DoelenBeheer";
-import type { Doel } from "@/lib/types";
+import type { Doel, DoelMetTeams, Team } from "@/lib/types";
 
 export default async function AdminDoelenPage({ params }: { params: Promise<{ slug: string }> }) {
   const { slug } = await params;
@@ -18,11 +18,23 @@ export default async function AdminDoelenPage({ params }: { params: Promise<{ sl
   }
 
   const service = createServiceRoleClient();
-  const { data: doelen } = await service
-    .from("doelen")
-    .select("*")
-    .eq("club_id", club.id)
-    .order("created_at", { ascending: true });
+  const [{ data: doelen }, { data: teams }] = await Promise.all([
+    service.from("doelen").select("*").eq("club_id", club.id).order("created_at", { ascending: true }),
+    service.from("teams").select("*").eq("club_id", club.id).order("team_naam"),
+  ]);
 
-  return <DoelenBeheer clubSlug={club.slug} initialDoelen={(doelen as Doel[]) ?? []} />;
+  const doelIds = ((doelen as Doel[]) ?? []).map((d) => d.id);
+  const { data: koppelingen } =
+    doelIds.length > 0
+      ? await service.from("doel_teams").select("doel_id, team_id").in("doel_id", doelIds)
+      : { data: [] };
+
+  const doelenMetTeams: DoelMetTeams[] = ((doelen as Doel[]) ?? []).map((doel) => ({
+    ...doel,
+    team_ids: (koppelingen ?? []).filter((k) => k.doel_id === doel.id).map((k) => k.team_id),
+  }));
+
+  return (
+    <DoelenBeheer clubSlug={club.slug} initialDoelen={doelenMetTeams} initialTeams={(teams as Team[]) ?? []} />
+  );
 }

@@ -47,6 +47,22 @@ export interface Team {
   updated_at: string;
 }
 
+/** Koppeling tussen een doel en een team dat ervoor mag meedoen (migratie 0012). */
+export interface DoelTeam {
+  doel_id: string;
+  team_id: string;
+}
+
+/**
+ * Doel + de teams die ervoor mogen meedoen. Een lege `team_ids` betekent
+ * "open voor alle teams van de club" — dat is ook het gedrag van elk
+ * doel van vóór migratie 0012, die simpelweg geen rijen in `doel_teams`
+ * heeft.
+ */
+export interface DoelMetTeams extends Doel {
+  team_ids: string[];
+}
+
 export interface Donateur {
   id: string;
   naam: string;

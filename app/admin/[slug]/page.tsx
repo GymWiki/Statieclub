@@ -4,7 +4,7 @@ import { vereisClubToegang } from "@/lib/adminAuth";
 import { SaldoOverzicht } from "@/components/admin/SaldoOverzicht";
 import { CampagneAfronden } from "@/components/admin/CampagneAfronden";
 import { PlatformFactuur } from "@/components/admin/PlatformFactuur";
-import type { Doel, Team } from "@/lib/types";
+import type { Doel, DoelMetTeams, Team } from "@/lib/types";
 
 export default async function AdminDashboardPage({ params }: { params: Promise<{ slug: string }> }) {
   const { slug } = await params;
@@ -23,6 +23,17 @@ export default async function AdminDashboardPage({ params }: { params: Promise<{
 
   const { data: teams } = await service.from("teams").select("*").eq("club_id", club.id);
   const { data: doelen } = await service.from("doelen").select("*").eq("club_id", club.id);
+
+  const doelIds = ((doelen as Doel[]) ?? []).map((d) => d.id);
+  const { data: doelTeamKoppelingen } =
+    doelIds.length > 0
+      ? await service.from("doel_teams").select("doel_id, team_id").in("doel_id", doelIds)
+      : { data: [] };
+
+  const doelenMetTeams: DoelMetTeams[] = ((doelen as Doel[]) ?? []).map((doel) => ({
+    ...doel,
+    team_ids: (doelTeamKoppelingen ?? []).filter((k) => k.doel_id === doel.id).map((k) => k.team_id),
+  }));
 
   const { data: facturen } = await service
     .from("facturen")
@@ -47,7 +58,7 @@ export default async function AdminDashboardPage({ params }: { params: Promise<{
 
   return (
     <>
-      <SaldoOverzicht club={club} initialTeams={(teams as Team[]) ?? []} initialDoelen={(doelen as Doel[]) ?? []} />
+      <SaldoOverzicht club={club} initialTeams={(teams as Team[]) ?? []} initialDoelen={doelenMetTeams} />
       <CampagneAfronden clubNaam={club.naam} teams={(teams as Team[]) ?? []} />
       <PlatformFactuur
         clubSlug={club.slug}

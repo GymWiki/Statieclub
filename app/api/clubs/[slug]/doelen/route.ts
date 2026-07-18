@@ -7,10 +7,16 @@ import { createClient, createServiceRoleClient } from "@/lib/supabase/server";
  * meerdere hebben — het aanmaken van de club zelf vraagt hier bewust
  * niet meer om. Alleen beschikbaar voor een beheerder van deze club
  * (club_admins); het schrijven zelf loopt via de service-role.
+ *
+ * `team_ids` (optioneel) beperkt welke teams dit doel mogen steunen —
+ * zie migratie 0012. Leeg of weggelaten: open voor alle teams van de
+ * club, zodat twee acties naast elkaar kunnen lopen voor
+ * verschillende teams zonder dat de standaardflow (één doel, alle
+ * teams) iets verandert.
  */
 export async function POST(request: NextRequest, { params }: { params: Promise<{ slug: string }> }) {
   const { slug } = await params;
-  const { titel, doelbedrag } = await request.json();
+  const { titel, doelbedrag, team_ids } = await request.json();
 
   const doelbedragGetal = Number(doelbedrag);
   if (!titel || typeof titel !== "string" || !titel.trim()) {
@@ -19,6 +25,9 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
   if (!Number.isFinite(doelbedragGetal) || doelbedragGetal <= 0) {
     return NextResponse.json({ error: "Doelbedrag moet een positief getal zijn." }, { status: 400 });
   }
+  const gevraagdeTeamIds = Array.isArray(team_ids)
+    ? team_ids.filter((t): t is string => typeof t === "string")
+    : [];
 
   const authedSupabase = await createClient();
   const {
@@ -58,5 +67,21 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
     return NextResponse.json({ error: doelError?.message ?? "Kon doel niet aanmaken." }, { status: 500 });
   }
 
-  return NextResponse.json({ doel });
+  // Alleen team_ids die daadwerkelijk bij deze club horen koppelen —
+  // voorkomt dat een gemanipuleerd request een team van een andere
+  // club aan dit doel hangt.
+  let teamIds: string[] = [];
+  if (gevraagdeTeamIds.length > 0) {
+    const { data: geldigeTeams } = await service
+      .from("teams")
+      .select("id")
+      .eq("club_id", club.id)
+      .in("id", gevraagdeTeamIds);
+    teamIds = (geldigeTeams ?? []).map((t) => t.id);
+    if (teamIds.length > 0) {
+      await service.from("doel_teams").insert(teamIds.map((team_id) => ({ doel_id: doel.id, team_id })));
+    }
+  }
+
+  return NextResponse.json({ doel: { ...doel, team_ids: teamIds } });
 }

@@ -1,21 +1,71 @@
 "use client";
 
 import { FormEvent, useState } from "react";
-import { Loader2, PlusCircle, Target, Lock, LockOpen } from "lucide-react";
+import { Loader2, PlusCircle, Target, Lock, LockOpen, Users, Pencil } from "lucide-react";
 import { Card } from "@/components/ui/Card";
 import { Button } from "@/components/ui/Button";
 import { Input, Label } from "@/components/ui/Input";
 import { ProgressBar } from "@/components/ui/ProgressBar";
-import { formatEuro, formatVoortgang } from "@/lib/utils";
-import type { Doel } from "@/lib/types";
+import { cn, formatEuro, formatVoortgang } from "@/lib/utils";
+import type { DoelMetTeams, Team } from "@/lib/types";
 
-export function DoelenBeheer({ clubSlug, initialDoelen }: { clubSlug: string; initialDoelen: Doel[] }) {
+function TeamsPicker({
+  teams,
+  geselecteerd,
+  onToggle,
+}: {
+  teams: Team[];
+  geselecteerd: string[];
+  onToggle: (teamId: string) => void;
+}) {
+  return (
+    <div className="flex flex-wrap gap-2">
+      {teams.map((team) => {
+        const actief = geselecteerd.includes(team.id);
+        return (
+          <label
+            key={team.id}
+            className={cn(
+              "flex cursor-pointer items-center gap-1.5 rounded-full border px-3 py-1.5 text-sm font-medium transition-colors",
+              actief ? "border-brand-500 bg-brand-50 text-brand-700" : "border-gray-200 text-gray-600 hover:border-gray-300"
+            )}
+          >
+            <input type="checkbox" className="sr-only" checked={actief} onChange={() => onToggle(team.id)} />
+            {team.team_naam}
+          </label>
+        );
+      })}
+    </div>
+  );
+}
+
+export function DoelenBeheer({
+  clubSlug,
+  initialDoelen,
+  initialTeams,
+}: {
+  clubSlug: string;
+  initialDoelen: DoelMetTeams[];
+  initialTeams: Team[];
+}) {
   const [doelen, setDoelen] = useState(initialDoelen);
+  const [teams] = useState(initialTeams);
   const [titel, setTitel] = useState("");
   const [doelbedrag, setDoelbedrag] = useState("");
+  const [nieuweTeamIds, setNieuweTeamIds] = useState<string[]>([]);
   const [bezig, setBezig] = useState(false);
   const [bezigId, setBezigId] = useState<string | null>(null);
   const [foutmelding, setFoutmelding] = useState<string | null>(null);
+
+  const [bewerkTeamsVoorId, setBewerkTeamsVoorId] = useState<string | null>(null);
+  const [bewerkSelectie, setBewerkSelectie] = useState<string[]>([]);
+  const [bewerkBezig, setBewerkBezig] = useState(false);
+
+  const teamNaamPerId = new Map(teams.map((t) => [t.id, t.team_naam]));
+
+  function toggleNieuwTeam(teamId: string) {
+    setNieuweTeamIds((prev) => (prev.includes(teamId) ? prev.filter((id) => id !== teamId) : [...prev, teamId]));
+  }
 
   async function doelToevoegen(e: FormEvent) {
     e.preventDefault();
@@ -26,7 +76,7 @@ export function DoelenBeheer({ clubSlug, initialDoelen }: { clubSlug: string; in
       const res = await fetch(`/api/clubs/${clubSlug}/doelen`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ titel, doelbedrag: Number(doelbedrag) }),
+        body: JSON.stringify({ titel, doelbedrag: Number(doelbedrag), team_ids: nieuweTeamIds }),
       });
       const json = await res.json();
 
@@ -38,12 +88,13 @@ export function DoelenBeheer({ clubSlug, initialDoelen }: { clubSlug: string; in
       setDoelen((prev) => [...prev, json.doel]);
       setTitel("");
       setDoelbedrag("");
+      setNieuweTeamIds([]);
     } finally {
       setBezig(false);
     }
   }
 
-  async function toggleActief(doel: Doel) {
+  async function toggleActief(doel: DoelMetTeams) {
     setBezigId(doel.id);
     try {
       const res = await fetch(`/api/doelen/${doel.id}`, {
@@ -57,6 +108,33 @@ export function DoelenBeheer({ clubSlug, initialDoelen }: { clubSlug: string; in
       }
     } finally {
       setBezigId(null);
+    }
+  }
+
+  function beginTeamsBewerken(doel: DoelMetTeams) {
+    setBewerkTeamsVoorId(doel.id);
+    setBewerkSelectie(doel.team_ids);
+  }
+
+  function toggleBewerkTeam(teamId: string) {
+    setBewerkSelectie((prev) => (prev.includes(teamId) ? prev.filter((id) => id !== teamId) : [...prev, teamId]));
+  }
+
+  async function teamsOpslaan(doelId: string) {
+    setBewerkBezig(true);
+    try {
+      const res = await fetch(`/api/doelen/${doelId}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ team_ids: bewerkSelectie }),
+      });
+      const json = await res.json();
+      if (res.ok) {
+        setDoelen((prev) => prev.map((d) => (d.id === doelId ? json.doel : d)));
+        setBewerkTeamsVoorId(null);
+      }
+    } finally {
+      setBewerkBezig(false);
     }
   }
 
@@ -91,6 +169,16 @@ export function DoelenBeheer({ clubSlug, initialDoelen }: { clubSlug: string; in
               placeholder="2500"
             />
           </div>
+          {teams.length > 0 && (
+            <div>
+              <Label>Welke teams mogen dit doel steunen?</Label>
+              <p className="mb-2 mt-0.5 text-xs text-gray-500">
+                Laat alles uitgevinkt om dit doel open te stellen voor alle teams. Vink specifieke teams aan om
+                bijvoorbeeld twee acties naast elkaar te laten lopen voor verschillende teams.
+              </p>
+              <TeamsPicker teams={teams} geselecteerd={nieuweTeamIds} onToggle={toggleNieuwTeam} />
+            </div>
+          )}
           <Button type="submit" className="w-full" disabled={bezig}>
             {bezig ? <Loader2 className="h-4 w-4 animate-spin" /> : <PlusCircle className="h-4 w-4" />}
             Doel toevoegen
@@ -109,6 +197,7 @@ export function DoelenBeheer({ clubSlug, initialDoelen }: { clubSlug: string; in
 
           {doelen.map((doel) => {
             const percentage = formatVoortgang(doel.opgehaald_bedrag, doel.doelbedrag);
+            const teamsBewerken = bewerkTeamsVoorId === doel.id;
             return (
               <div key={doel.id} className="rounded-xl border border-gray-200 p-4">
                 <div className="flex items-start justify-between gap-2">
@@ -145,6 +234,39 @@ export function DoelenBeheer({ clubSlug, initialDoelen }: { clubSlug: string; in
                     </span>
                     <span className="font-semibold text-brand-700">{percentage}%</span>
                   </div>
+                </div>
+
+                <div className="mt-3 border-t border-gray-100 pt-3">
+                  {teamsBewerken ? (
+                    <div className="space-y-2">
+                      {teams.length > 0 ? (
+                        <TeamsPicker teams={teams} geselecteerd={bewerkSelectie} onToggle={toggleBewerkTeam} />
+                      ) : (
+                        <p className="text-xs text-gray-400">Deze club heeft nog geen teams.</p>
+                      )}
+                      <div className="flex gap-2">
+                        <Button size="sm" disabled={bewerkBezig} onClick={() => teamsOpslaan(doel.id)}>
+                          {bewerkBezig && <Loader2 className="h-3.5 w-3.5 animate-spin" />} Opslaan
+                        </Button>
+                        <Button size="sm" variant="ghost" disabled={bewerkBezig} onClick={() => setBewerkTeamsVoorId(null)}>
+                          Annuleren
+                        </Button>
+                      </div>
+                    </div>
+                  ) : (
+                    <button
+                      onClick={() => beginTeamsBewerken(doel)}
+                      className="flex w-full items-center justify-between gap-2 text-left text-xs text-gray-500 hover:text-gray-700"
+                    >
+                      <span className="flex items-center gap-1.5">
+                        <Users className="h-3.5 w-3.5" />
+                        {doel.team_ids.length === 0
+                          ? "Open voor alle teams"
+                          : `Alleen: ${doel.team_ids.map((id) => teamNaamPerId.get(id) ?? "onbekend team").join(", ")}`}
+                      </span>
+                      <Pencil className="h-3 w-3 shrink-0" />
+                    </button>
+                  )}
                 </div>
               </div>
             );

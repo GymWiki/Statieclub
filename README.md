@@ -109,6 +109,7 @@ supabase/
   migrations/0009_badge_engine_uitbreiding.sql  buurt-/snelheids-/verborgen badges, geclaimd_door_speler_id
   migrations/0010_geolocatie_prikbord.sql  donateurs.lat/lng voor afstand + fuzzy kaartweergave
   migrations/0011_anoniem_chatsysteem.sql  berichten-tabel (speler ↔ donateur per ophaalverzoek)
+  migrations/0012_doel_team_scoping.sql  doel_teams-tabel (doelen scopen naar specifieke teams)
   seed.sql                        Demodata voor lokale ontwikkeling
 ```
 
@@ -121,6 +122,7 @@ Volledig relationeel, geen geneste/array/JSON-lijstkolommen — elke
 |---|---|
 | `clubs` | naam, slug, postcode, regio |
 | `doelen` | club_id, titel, doelbedrag, opgehaald_bedrag, is_actief |
+| `doel_teams` | doel_id, team_id — welke teams een doel mogen steunen |
 | `teams` | club_id, team_naam, totaal_punten, totaal_opgehaald_euro |
 | `donateurs` | naam, email (uniek), adres, postcode, telefoonnummer |
 | `ophaalverzoeken` | donateur_id, club_id, doel_id, geclaimd_door_team_id, status, aantal_geschat |
@@ -138,6 +140,32 @@ meer om een doel; dat voeg je apart toe via
 `/admin/[slug]/doelen`. Een donateur kiest bij het invullen van het
 ophaalformulier welk actief doel van de club hij steunt
 (`ophaalverzoeken.doel_id`).
+
+**Doelen scopen naar specifieke teams** (migratie 0012, `doel_teams`):
+bij het aanmaken of bewerken van een doel kan een beheerder kiezen
+welke teams ervoor mogen meedoen (`DoelenBeheer.tsx`, teams-picker met
+checkboxes). Geen team aangevinkt = open voor alle teams van de club —
+exact het gedrag van elk doel van vóór deze migratie, die simpelweg
+geen rijen in `doel_teams` heeft. Zijn er wél specifieke teams
+gekoppeld, dan is die scoping overal doorgetrokken:
+- **Prikbord** (`GET /api/ophaalverzoeken/nearby?team_id=...`): een
+  team ziet alleen ophaalverzoeken van doelen die open zijn voor alle
+  teams óf specifiek voor hun eigen team — zo kunnen twee acties naast
+  elkaar lopen zonder dat de ene lijst de andere overlapt.
+- **Claimen** (`POST /api/ophaalverzoeken/[id]/claim`): dezelfde check
+  wordt server-side herhaald (403 bij een niet-toegelaten team), want
+  de prikbord-filter is enkel UX en voorkomt geen rechtstreekse POST.
+- **Scorebord** (`Leaderboard.tsx`): de "Waar we samen voor
+  sparen"-kaart toont alleen doelen die voor het eigen team gelden.
+- **Penningmeester-dashboard** (`SaldoOverzicht.tsx`): toont bij elk
+  doel welke teams eraan gekoppeld zijn ("Alle teams" of de
+  teamnamen), zodat parallelle acties er niet als één geheel uitzien.
+
+Team-scoping wordt bewust client-side gefilterd op het scorebord (niet
+server-side zoals het prikbord): welk team er lokaal gekozen is, is
+enkel bij de browser bekend (geen login/cookies), dus `doel_teams`
+wordt server-side gewoon volledig meegestuurd en pas in
+`Leaderboard.tsx` toegepast op basis van `useTeam().gekozenTeam`.
 
 **Triggers** houden de scores automatisch consistent:
 - Bij het inleveren van een bonnetje bepaalt de anomaly-detection-check
