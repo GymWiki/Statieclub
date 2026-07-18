@@ -55,7 +55,7 @@ expliciet uit elkaar in plaats van één generieke "voor clubs"-link:
 
 ```
 app/
-  page.tsx                        Marketing-landingspagina (Nav/Hero/ActivityTicker/RoleSelector/HowItWorks/ClubPitch/Faq/Footer)
+  page.tsx                        Marketing-landingspagina (Nav/Hero/ActivityTicker/RoleSelector/ImpactStats/HowItWorks/ClubPitch/Faq/Footer)
   donateren/page.tsx              Functionele donor-flow (postcode + live clubgrid, met ?postcode=)
   clubs/[slug]/page.tsx           Club-detail + ophaalformulier (donor)
   speler/page.tsx                 Generieke club-zoekpagina voor "Inloggen als Speler"
@@ -282,6 +282,21 @@ niet uit Supabase opgehaald:
   (thuisblijven, AVG) als besturen (kosten, betrouwbaarheid). Zelfgebouwd
   met `AnimatePresence` + een `height: "auto"`-animatie, hetzelfde
   patroon als het mobiele hamburgermenu in `Nav.tsx`.
+- **`ImpactStats`** (`components/marketing/ImpactStats.tsx`, "De harde
+  cijfers", direct onder `RoleSelector`): een `bg-slate-900`-sectie die
+  bewust breekt met de rest van de lichte pagina — drie statistieken
+  over hoeveel statiegeld er jaarlijks ongeclaimd blijft, die van 0
+  optellen naar hun eindwaarde zodra de sectie in beeld scrolt. De
+  telanimatie is een eigen `useCountUp`-hook (dezelfde ease-out-curve
+  als `AnimatedNumber.tsx`, maar getriggerd door Framer Motions
+  `useInView` i.p.v. een waardewijziging) — bewust geen extra
+  dependency (`react-countup`) toegevoegd, want Framer Motion zat er al
+  in. Eén `useInView` op sectieniveau stuurt zowel de fade-in als alle
+  drie de tellers tegelijk aan, zodat ze gelijktijdig lopen i.p.v.
+  willekeurig verspringen per kaart. Bij `prefers-reduced-motion`
+  springt elk getal direct naar de eindwaarde. De brontekst onderaan
+  ("Statiegeld Nederland" + ILT) is een subtiele, niet-opdringerige
+  footnote-stijl (`text-slate-400/70`).
 
 **Bekende afweging:** de Hero-CTA navigeert client-side naar
 `/donateren`, een Server Component die live clubs uit Supabase
