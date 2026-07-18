@@ -6,6 +6,7 @@ import { ImpactStats } from "@/components/marketing/ImpactStats";
 import { PricingPromise } from "@/components/marketing/PricingPromise";
 import { HowItWorks } from "@/components/marketing/HowItWorks";
 import { ClubPitch } from "@/components/marketing/ClubPitch";
+import { WhyBetter } from "@/components/marketing/WhyBetter";
 import { Faq } from "@/components/marketing/Faq";
 import { Footer } from "@/components/marketing/Footer";
 
@@ -21,6 +22,7 @@ export default function HomePage() {
         <PricingPromise />
         <HowItWorks />
         <ClubPitch />
+        <WhyBetter />
         <Faq />
       </main>
       <Footer />

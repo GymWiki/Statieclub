@@ -55,7 +55,7 @@ expliciet uit elkaar in plaats van één generieke "voor clubs"-link:
 
 ```
 app/
-  page.tsx                        Marketing-landingspagina (Nav/Hero/ActivityTicker/RoleSelector/ImpactStats/PricingPromise/HowItWorks/ClubPitch/Faq/Footer)
+  page.tsx                        Marketing-landingspagina (Nav/Hero/ActivityTicker/RoleSelector/ImpactStats/PricingPromise/HowItWorks/ClubPitch/WhyBetter/Faq/Footer)
   donateren/page.tsx              Functionele donor-flow (postcode + live clubgrid, met ?postcode=)
   clubs/[slug]/page.tsx           Club-detail + ophaalformulier (donor)
   speler/page.tsx                 Generieke club-zoekpagina voor "Inloggen als Speler"
@@ -311,6 +311,19 @@ niet uit Supabase opgehaald:
   `bg-brand-50`-kaart, het 5%-blok bewust soberder) — zo blijft de
   waarde van beide altijd als tekst leesbaar, ook zonder op kleur te
   hoeven vertrouwen.
+- **`WhyBetter`** (`components/marketing/WhyBetter.tsx`, "Meer
+  opbrengst. Minder moeite. 100% Groen.", ná de bento-grid-showcase
+  `ClubPitch` en vóór de `Faq`): het directe vergelijkingsargument
+  t.o.v. traditionele fondsenwerving (loten, koeken verkopen) — vier
+  glasachtige kaarten in een 2×2-grid (`bg-white/70 backdrop-blur-xl`,
+  gestapeld op mobiel), elk met een eigen icoon-kleur (amber/blauw/
+  brand-groen/violet) zodat de vier kaarten ook zonder te lezen als
+  losse argumenten ogen. Gestaggerde in-fade via `staggerDelay`
+  (`lib/motion.ts`) — de eerste échte toepassing van die helper, die
+  eerder alleen gedefinieerd stond. Sectie-achtergrond bewust
+  `bg-slate-50` (niet `bg-white`, zoals `HowItWorks`/`Faq`) zodat er nog
+  een lichte scheiding zichtbaar blijft tussen deze sectie en de
+  `Faq` erna, ook al zijn beide "licht".
 
 **Bekende afweging:** de Hero-CTA navigeert client-side naar
 `/donateren`, een Server Component die live clubs uit Supabase
