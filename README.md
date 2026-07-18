@@ -455,8 +455,9 @@ een UI-conventie:
 Naast de gratis statiegeld-ophaalflow kan een buurtbewoner een vaste
 donatie (€5/€10/€15) vooraf betalen om oud papier of zware
 glasbak-flessen door een team te laten weggooien — geen OCR-scan, geen
-penningmeester-verificatie, en het bedrag gaat **100% naar de clubkas**
-(geen 5%-platformfee, zie hieronder).
+penningmeester-verificatie. De donatie valt onder dezelfde 5%-
+platformfee als een gewone statiegeld-scan (zie hieronder) — geen
+uitzondering, ondanks dat er geen bonnetje aan te pas komt.
 
 - **Schema** (migratie 0013): `ophaalverzoeken.type`
   (`'statiegeld' | 'glasbak'`), `.vooraf_betaald` en `.donatie_bedrag`.
@@ -492,10 +493,11 @@ penningmeester-verificatie, en het bedrag gaat **100% naar de clubkas**
   /api/ophaalverzoeken/[id]/claim` filteren/weigeren `glasbak`-ritten
   voor een team zonder `glas_service_actief` — client-side (UX) én
   server-side (afgedwongen), net als bij de doel-teamscoping.
-- **Facturatie**: `bron = 'glas_naar_kas'` telt bewust nooit mee in de
+- **Facturatie**: `bron = 'glas_naar_kas'` telt gewoon mee in de
   5%-platformfee-berekening (`/api/clubs/[slug]/facturen` en het
-  admin-dashboard preview-bedrag filteren er expliciet op) — dat is de
-  "100% naar de clubkas"-belofte, niet enkel marketingtekst.
+  admin-dashboard preview-bedrag) — er is bewust geen uitzondering
+  gemaakt voor deze service, dat zou het verdienmodel inconsistent
+  maken.
 - **Admin** (`components/admin/TeamsBeheer.tsx` +
   `components/ui/Toggle.tsx`): een herbruikbare toggle-switch, één per
   team, met `PATCH /api/teams/[id]`.

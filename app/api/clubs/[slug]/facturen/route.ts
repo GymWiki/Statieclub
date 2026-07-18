@@ -8,9 +8,9 @@ import { berekenPlatformFee, PLATFORM_FEE_PERCENTAGE } from "@/lib/utils";
  * bonnetjes die de penningmeester heeft goedgekeurd sinds het einde
  * van de vorige factuurperiode (of sinds het ontstaan van de club, als
  * dit de eerste factuur is). Afgekeurde scans en openstaande
- * vlaggetjes tellen dus nooit mee — en `bron = 'glas_naar_kas'`
- * evenmin: die donaties gaan expliciet 100% naar de clubkas, geen
- * platformfee (zie migratie 0013).
+ * vlaggetjes tellen dus nooit mee. `bron = 'glas_naar_kas'`
+ * ("Glas-naar-Kas") telt hier bewust wél mee — die service valt onder
+ * dezelfde 5%-regel als een gewone statiegeld-scan.
  */
 export async function POST(_request: NextRequest, { params }: { params: Promise<{ slug: string }> }) {
   const { slug } = await params;
@@ -62,7 +62,6 @@ export async function POST(_request: NextRequest, { params }: { params: Promise<
     .from("bonnetjes")
     .select("bedrag_euro, teams!inner(club_id)")
     .eq("status", "goedgekeurd")
-    .neq("bron", "glas_naar_kas")
     .eq("teams.club_id", club.id)
     .gt("geverifieerd_op", periodeStart)
     .lte("geverifieerd_op", periodeEind);

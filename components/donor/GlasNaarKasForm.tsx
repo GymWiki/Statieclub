@@ -241,7 +241,7 @@ export function GlasNaarKasForm({
           <motion.div key="bedrag" initial={{ opacity: 0, x: 12 }} animate={{ opacity: 1, x: 0 }} exit={{ opacity: 0, x: -12 }}>
             <h2 className="font-bold text-gray-900">Kies je donatie</h2>
             <p className="mt-1 text-sm text-gray-500">
-              Dit bedrag gaat 100% naar de clubkas van {clubNaam} — een team ruimt jouw glas/papier voor je op.
+              Dit bedrag gaat naar de clubkas van {clubNaam} — een team ruimt jouw glas/papier voor je op.
             </p>
 
             <div className="mt-4 grid grid-cols-3 gap-2.5">

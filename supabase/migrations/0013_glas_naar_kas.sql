@@ -49,10 +49,10 @@ alter table bonnetjes add constraint chk_foto_url_vereist_voor_scan check (
 );
 
 -- ─────────────────────────────────────────────────────────────
--- 4. Facturatie: "100% naar de clubkas" is een expliciete belofte in
---    de marketing (PricingPromise) — Glas-naar-Kas-donaties mogen dus
---    NOOIT meetellen in de 5%-platformfee-berekening. De
---    facturen-route en het admin-dashboard filteren zelf op
---    `bron <> 'glas_naar_kas'`; hier geen schemawijziging nodig, enkel
---    een reminder in de kolomnaam-conventie hierboven.
+-- 4. Facturatie: "Glas-naar-Kas"-donaties (bron = 'glas_naar_kas')
+--    vallen bewust onder dezelfde 5%-platformfee als een gewone
+--    statiegeld-scan — geen uitzondering. De facturen-route en het
+--    admin-dashboard rekenen ze dus gewoon mee, geen aparte filter
+--    nodig. Geen schemawijziging vereist voor deze regel; enkel de
+--    `bron`-kolom hierboven is nodig om herkomst te kunnen tonen.
 -- ─────────────────────────────────────────────────────────────
