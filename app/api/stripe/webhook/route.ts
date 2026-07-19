@@ -24,6 +24,10 @@ import { stripeClient } from "@/lib/stripe";
  *     (`stripe_checkout_session_id`) op 'paid'. Idempotent via de
  *     `status = 'pending'`-voorwaarde: een herhaalde aflevering van
  *     hetzelfde event vindt de tweede keer niets meer om bij te werken.
+ *   - 'betaalverzoek': zet het betaalverzoek (uit een afgeronde actie,
+ *     zie lib/actieAfronden.ts) op 'betaald' en de bijbehorende
+ *     `statiegeld_inleveringen`-rijen (gekoppeld via
+ *     `betaalverzoek_id`) op 'paid'.
  * - `account.updated`: zet `clubs.onboarding_complete` zodra Stripe
  *   bevestigt dat het Express-account klaar is om te ontvangen.
  *
@@ -69,6 +73,43 @@ export async function POST(request: NextRequest) {
       if (error) {
         console.error("[stripe webhook] kon portemonnee-inleveringen niet bijwerken:", error);
         return NextResponse.json({ error: "Kon inleveringen niet bijwerken." }, { status: 500 });
+      }
+
+      return NextResponse.json({ ontvangen: true });
+    }
+
+    if (session.metadata?.type === "betaalverzoek") {
+      const betaalverzoekId = session.metadata.betaalverzoek_id;
+
+      // Idempotent via de status='open'-voorwaarde: een herhaalde
+      // aflevering vindt de tweede keer niets meer om bij te werken.
+      const { data: bijgewerkt, error: betaalverzoekError } = await service
+        .from("betaalverzoeken")
+        .update({ status: "betaald", stripe_checkout_session_id: session.id })
+        .eq("id", betaalverzoekId)
+        .eq("status", "open")
+        .select("id")
+        .maybeSingle();
+
+      if (betaalverzoekError) {
+        console.error("[stripe webhook] kon betaalverzoek niet bijwerken:", betaalverzoekError);
+        return NextResponse.json({ error: "Kon betaalverzoek niet bijwerken." }, { status: 500 });
+      }
+
+      if (bijgewerkt) {
+        // Exact de rijen die ván dit betaalverzoek zijn — nooit op
+        // status alleen matchen, want een speler kan tegelijk een
+        // ander (nog niet betaald) betaalverzoek hebben.
+        const { error: inleveringenError } = await service
+          .from("statiegeld_inleveringen")
+          .update({ status: "paid" })
+          .eq("betaalverzoek_id", bijgewerkt.id)
+          .eq("status", "processed_for_payment");
+
+        if (inleveringenError) {
+          console.error("[stripe webhook] kon inleveringen niet op paid zetten:", inleveringenError);
+          return NextResponse.json({ error: "Kon inleveringen niet bijwerken." }, { status: 500 });
+        }
       }
 
       return NextResponse.json({ ontvangen: true });

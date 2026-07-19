@@ -6,19 +6,22 @@ import { CheckCircle2, Loader2 } from "lucide-react";
 import { useTeam } from "@/components/team/TeamContext";
 import { StatiegeldRegistreren } from "@/components/team/StatiegeldRegistreren";
 import { StatiegeldSaldo } from "@/components/team/StatiegeldSaldo";
-import type { StatiegeldInlevering } from "@/lib/types";
+import type { Doel, StatiegeldInlevering } from "@/lib/types";
 
 /**
  * Virtuele Portemonnee: een clublid dat zelf flessen inlevert bij de
  * supermarkt spaart hier het bedrag op (i.p.v. het meteen af te
  * dragen) en rekent het pas af zodra het de €20-drempel haalt — zie
  * migratie 0016 voor waarom dit een ander mechanisme is dan "Scan
- * Eigen Statiegeld".
+ * Eigen Statiegeld". `doelen` (actieve acties van deze club) komt van
+ * de server en gaat door naar `StatiegeldRegistreren` voor de
+ * doel-picker (migratie 0017).
  */
-export function Portemonnee() {
+export function Portemonnee({ doelen }: { doelen: Doel[] }) {
   const { gekozenTeam, spelerId } = useTeam();
   const searchParams = useSearchParams();
-  const betalingGelukt = searchParams.get("betaling") === "gelukt";
+  const betalingStatus = searchParams.get("betaling");
+  const betalingGelukt = betalingStatus === "gelukt" || betalingStatus === "al_voldaan";
 
   const [inleveringen, setInleveringen] = useState<StatiegeldInlevering[]>([]);
   const [ladend, setLadend] = useState(true);
@@ -78,6 +81,7 @@ export function Portemonnee() {
           <StatiegeldRegistreren
             spelerId={spelerId}
             clubId={gekozenTeam.club_id}
+            doelen={doelen}
             onGeregistreerd={(nieuw) => setInleveringen((prev) => [nieuw, ...prev])}
           />
         </>

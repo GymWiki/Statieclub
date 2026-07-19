@@ -6,6 +6,7 @@ import { usePathname } from "next/navigation";
 import { useTeam } from "@/components/team/TeamContext";
 import { TeamKiezer } from "@/components/team/TeamKiezer";
 import { BottomNav } from "@/components/team/BottomNav";
+import { BetaalverzoekBanner } from "@/components/team/BetaalverzoekBanner";
 
 export function ClubShell({
   clubSlug,
@@ -16,7 +17,7 @@ export function ClubShell({
   clubNaam: string;
   children: React.ReactNode;
 }) {
-  const { gekozenTeam, wisselTeam } = useTeam();
+  const { gekozenTeam, wisselTeam, spelerId } = useTeam();
   const pathname = usePathname();
 
   if (!gekozenTeam) {
@@ -43,6 +44,8 @@ export function ClubShell({
           <Repeat className="h-3.5 w-3.5" /> Wissel team
         </button>
       </header>
+
+      <BetaalverzoekBanner spelerId={spelerId} />
 
       <main>{children}</main>
 

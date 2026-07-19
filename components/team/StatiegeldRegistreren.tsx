@@ -7,24 +7,32 @@ import { Card } from "@/components/ui/Card";
 import { Button } from "@/components/ui/Button";
 import { Input, Label } from "@/components/ui/Input";
 import { formatEuro } from "@/lib/utils";
-import type { StatiegeldInlevering } from "@/lib/types";
+import type { Doel, StatiegeldInlevering } from "@/lib/types";
 
 /**
  * Registreert een zelf ingeleverd statiegeldbonnetje in de Virtuele
  * Portemonnee. De foto is bewust optioneel (i.t.t. de Hybride OCR
  * Scanner) — dit is geen geverifieerde, direct-credit-flow, maar een
  * persoonlijke boekhouding die het clublid later zelf afrekent.
+ *
+ * `doelen` (actieve acties van de club): bij 0 of 1 geen picker nodig
+ * (zelfde conventie als GlasNaarKasForm/OphaalForm) — het bonnetje
+ * hangt dan aan het enige actieve doel, of aan geen enkel doel (telt
+ * mee zodra de eerstvolgende actie sluit, migratie 0017).
  */
 export function StatiegeldRegistreren({
   spelerId,
   clubId,
+  doelen,
   onGeregistreerd,
 }: {
   spelerId: string;
   clubId: string;
+  doelen: Doel[];
   onGeregistreerd: (inlevering: StatiegeldInlevering) => void;
 }) {
   const [bedragInput, setBedragInput] = useState("");
+  const [doelId, setDoelId] = useState(doelen.length === 1 ? doelen[0].id : "");
   const [bestand, setBestand] = useState<File | null>(null);
   const [bezig, setBezig] = useState(false);
   const [foutmelding, setFoutmelding] = useState<string | null>(null);
@@ -59,7 +67,13 @@ export function StatiegeldRegistreren({
       const res = await fetch("/api/statiegeld-inleveringen", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ speler_id: spelerId, club_id: clubId, bedrag, image_url: imageUrl }),
+        body: JSON.stringify({
+          speler_id: spelerId,
+          club_id: clubId,
+          doel_id: doelId || null,
+          bedrag,
+          image_url: imageUrl,
+        }),
       });
       const json = await res.json();
 
@@ -91,6 +105,24 @@ export function StatiegeldRegistreren({
       </p>
 
       <div className="mt-4 space-y-3">
+        {doelen.length > 1 && (
+          <div>
+            <Label htmlFor="statiegeld-doel">Voor welke actie?</Label>
+            <select
+              id="statiegeld-doel"
+              value={doelId}
+              onChange={(e) => setDoelId(e.target.value)}
+              className="w-full rounded-xl border border-gray-300 px-4 py-3 text-base text-gray-900 focus:border-brand-500 focus:outline-none focus:ring-2 focus:ring-brand-500/20"
+            >
+              <option value="">Nog geen specifieke actie</option>
+              {doelen.map((doel) => (
+                <option key={doel.id} value={doel.id}>
+                  {doel.titel}
+                </option>
+              ))}
+            </select>
+          </div>
+        )}
         <div>
           <Label htmlFor="statiegeld-bedrag">Bedrag</Label>
           <Input

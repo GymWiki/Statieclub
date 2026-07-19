@@ -16,7 +16,7 @@ import { createClient, createServiceRoleClient } from "@/lib/supabase/server";
  */
 export async function POST(request: NextRequest, { params }: { params: Promise<{ slug: string }> }) {
   const { slug } = await params;
-  const { titel, doelbedrag, team_ids } = await request.json();
+  const { titel, doelbedrag, team_ids, end_date: endDate } = await request.json();
 
   const doelbedragGetal = Number(doelbedrag);
   if (!titel || typeof titel !== "string" || !titel.trim()) {
@@ -24,6 +24,9 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
   }
   if (!Number.isFinite(doelbedragGetal) || doelbedragGetal <= 0) {
     return NextResponse.json({ error: "Doelbedrag moet een positief getal zijn." }, { status: 400 });
+  }
+  if (endDate && Number.isNaN(new Date(endDate).getTime())) {
+    return NextResponse.json({ error: "Ongeldige einddatum." }, { status: 400 });
   }
   const gevraagdeTeamIds = Array.isArray(team_ids)
     ? team_ids.filter((t): t is string => typeof t === "string")
@@ -59,7 +62,7 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
 
   const { data: doel, error: doelError } = await service
     .from("doelen")
-    .insert({ club_id: club.id, titel: titel.trim(), doelbedrag: doelbedragGetal })
+    .insert({ club_id: club.id, titel: titel.trim(), doelbedrag: doelbedragGetal, end_date: endDate || null })
     .select()
     .single();
 

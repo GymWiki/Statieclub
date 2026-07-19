@@ -1,13 +1,28 @@
 "use client";
 
 import { FormEvent, useState } from "react";
-import { Loader2, PlusCircle, Target, Lock, LockOpen, Users, Pencil } from "lucide-react";
+import {
+  Loader2,
+  PlusCircle,
+  Target,
+  Lock,
+  LockOpen,
+  Users,
+  Pencil,
+  CalendarClock,
+  Zap,
+  Receipt,
+  MessageCircleMore,
+} from "lucide-react";
 import { Card } from "@/components/ui/Card";
 import { Button } from "@/components/ui/Button";
 import { Input, Label } from "@/components/ui/Input";
 import { ProgressBar } from "@/components/ui/ProgressBar";
-import { cn, formatEuro, formatVoortgang } from "@/lib/utils";
-import type { DoelMetTeams, Team } from "@/lib/types";
+import { StatusBadge } from "@/components/ui/Badge";
+import { bouwWhatsappUrl, cn, formatEuro, formatVoortgang } from "@/lib/utils";
+import type { Betaalverzoek, DoelMetTeams, Team } from "@/lib/types";
+
+type BetaalverzoekMetSpeler = Betaalverzoek & { spelers: { naam: string } | null };
 
 function TeamsPicker({
   teams,
@@ -39,6 +54,44 @@ function TeamsPicker({
   );
 }
 
+function BetaalverzoekenLijst({ betaalverzoeken }: { betaalverzoeken: BetaalverzoekMetSpeler[] }) {
+  const basisUrl = (process.env.NEXT_PUBLIC_SITE_URL ?? "").replace(/\/$/, "");
+
+  if (betaalverzoeken.length === 0) {
+    return <p className="py-3 text-center text-xs text-gray-400">Geen betaalverzoeken gegenereerd bij deze actie.</p>;
+  }
+
+  return (
+    <div className="divide-y divide-gray-100">
+      {betaalverzoeken.map((verzoek) => {
+        const naam = verzoek.spelers?.naam ?? "Onbekende speler";
+        const link = `${basisUrl}/api/checkout/${verzoek.id}`;
+        const bericht = `Hoi! De actie is afgerond. Je hebt in totaal ${formatEuro(verzoek.bedrag)} opgehaald, super bedankt! Je kunt het via deze veilige iDEAL link overmaken naar de club: ${link}`;
+
+        return (
+          <div key={verzoek.id} className="flex items-center justify-between gap-2 py-2.5 text-sm">
+            <div className="min-w-0 flex-1">
+              <p className="truncate font-medium text-gray-900">{naam}</p>
+              <p className="text-xs text-gray-500">{formatEuro(verzoek.bedrag)}</p>
+            </div>
+            <StatusBadge status={verzoek.status} />
+            {verzoek.status === "open" && (
+              <a
+                href={bouwWhatsappUrl(null, bericht)}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="flex shrink-0 items-center gap-1 rounded-lg bg-emerald-50 px-2.5 py-1.5 text-xs font-medium text-emerald-700 hover:bg-emerald-100"
+              >
+                <MessageCircleMore className="h-3.5 w-3.5" /> Deel via WhatsApp
+              </a>
+            )}
+          </div>
+        );
+      })}
+    </div>
+  );
+}
+
 export function DoelenBeheer({
   clubSlug,
   initialDoelen,
@@ -52,6 +105,7 @@ export function DoelenBeheer({
   const [teams] = useState(initialTeams);
   const [titel, setTitel] = useState("");
   const [doelbedrag, setDoelbedrag] = useState("");
+  const [eindDatum, setEindDatum] = useState("");
   const [nieuweTeamIds, setNieuweTeamIds] = useState<string[]>([]);
   const [bezig, setBezig] = useState(false);
   const [bezigId, setBezigId] = useState<string | null>(null);
@@ -60,6 +114,13 @@ export function DoelenBeheer({
   const [bewerkTeamsVoorId, setBewerkTeamsVoorId] = useState<string | null>(null);
   const [bewerkSelectie, setBewerkSelectie] = useState<string[]>([]);
   const [bewerkBezig, setBewerkBezig] = useState(false);
+
+  const [afrondenBezigId, setAfrondenBezigId] = useState<string | null>(null);
+  const [getoondeBetaalverzoekenId, setGetoondeBetaalverzoekenId] = useState<string | null>(null);
+  const [betaalverzoekenLadend, setBetaalverzoekenLadend] = useState(false);
+  const [betaalverzoekenPerDoel, setBetaalverzoekenPerDoel] = useState<Map<string, BetaalverzoekMetSpeler[]>>(
+    new Map()
+  );
 
   const teamNaamPerId = new Map(teams.map((t) => [t.id, t.team_naam]));
 
@@ -76,7 +137,12 @@ export function DoelenBeheer({
       const res = await fetch(`/api/clubs/${clubSlug}/doelen`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ titel, doelbedrag: Number(doelbedrag), team_ids: nieuweTeamIds }),
+        body: JSON.stringify({
+          titel,
+          doelbedrag: Number(doelbedrag),
+          team_ids: nieuweTeamIds,
+          end_date: eindDatum || null,
+        }),
       });
       const json = await res.json();
 
@@ -88,6 +154,7 @@ export function DoelenBeheer({
       setDoelen((prev) => [...prev, json.doel]);
       setTitel("");
       setDoelbedrag("");
+      setEindDatum("");
       setNieuweTeamIds([]);
     } finally {
       setBezig(false);
@@ -138,6 +205,48 @@ export function DoelenBeheer({
     }
   }
 
+  async function actieAfronden(doel: DoelMetTeams) {
+    if (!confirm(`Actie "${doel.titel}" nu afronden? Dit sluit de actie en genereert betaalverzoeken.`)) return;
+
+    setAfrondenBezigId(doel.id);
+    setFoutmelding(null);
+    try {
+      const res = await fetch(`/api/doelen/${doel.id}/afronden`, { method: "POST" });
+      const json = await res.json();
+
+      if (!res.ok) {
+        setFoutmelding(json.error ?? "Kon de actie niet afronden.");
+        return;
+      }
+
+      setDoelen((prev) => prev.map((d) => (d.id === doel.id ? { ...d, is_actief: false } : d)));
+      await toonBetaalverzoeken(doel.id, true);
+    } finally {
+      setAfrondenBezigId(null);
+    }
+  }
+
+  async function toonBetaalverzoeken(doelId: string, forceerHerladen = false) {
+    if (getoondeBetaalverzoekenId === doelId && !forceerHerladen) {
+      setGetoondeBetaalverzoekenId(null);
+      return;
+    }
+
+    setGetoondeBetaalverzoekenId(doelId);
+    if (betaalverzoekenPerDoel.has(doelId) && !forceerHerladen) return;
+
+    setBetaalverzoekenLadend(true);
+    try {
+      const res = await fetch(`/api/betaalverzoeken?doel_id=${doelId}`);
+      const json = await res.json();
+      if (res.ok) {
+        setBetaalverzoekenPerDoel((prev) => new Map(prev).set(doelId, json.betaalverzoeken ?? []));
+      }
+    } finally {
+      setBetaalverzoekenLadend(false);
+    }
+  }
+
   return (
     <div className="space-y-4">
       <Card className="p-5">
@@ -169,6 +278,14 @@ export function DoelenBeheer({
               placeholder="2500"
             />
           </div>
+          <div>
+            <Label htmlFor="eind-datum">Einddatum (optioneel)</Label>
+            <p className="mb-1.5 mt-0.5 text-xs text-gray-500">
+              Gezet? Dan sluit deze actie automatisch op deze datum en genereren we betaalverzoeken voor iedereen die
+              spaarde via de Virtuele Portemonnee — &ldquo;Set and Forget&rdquo;.
+            </p>
+            <Input id="eind-datum" type="date" value={eindDatum} onChange={(e) => setEindDatum(e.target.value)} />
+          </div>
           {teams.length > 0 && (
             <div>
               <Label>Welke teams mogen dit doel steunen?</Label>
@@ -198,6 +315,7 @@ export function DoelenBeheer({
           {doelen.map((doel) => {
             const percentage = formatVoortgang(doel.opgehaald_bedrag, doel.doelbedrag);
             const teamsBewerken = bewerkTeamsVoorId === doel.id;
+            const betaalverzoekenGetoond = getoondeBetaalverzoekenId === doel.id;
             return (
               <div key={doel.id} className="rounded-xl border border-gray-200 p-4">
                 <div className="flex items-start justify-between gap-2">
@@ -236,6 +354,14 @@ export function DoelenBeheer({
                   </div>
                 </div>
 
+                {doel.end_date && (
+                  <p className="mt-2 flex items-center gap-1.5 text-xs text-gray-500">
+                    <CalendarClock className="h-3.5 w-3.5" />
+                    Sluit automatisch op{" "}
+                    {new Date(doel.end_date).toLocaleDateString("nl-NL", { day: "numeric", month: "short", year: "numeric" })}
+                  </p>
+                )}
+
                 <div className="mt-3 border-t border-gray-100 pt-3">
                   {teamsBewerken ? (
                     <div className="space-y-2">
@@ -268,6 +394,37 @@ export function DoelenBeheer({
                     </button>
                   )}
                 </div>
+
+                <div className="mt-3 flex flex-wrap gap-2 border-t border-gray-100 pt-3">
+                  {doel.is_actief && (
+                    <Button size="sm" variant="secondary" disabled={afrondenBezigId === doel.id} onClick={() => actieAfronden(doel)}>
+                      {afrondenBezigId === doel.id ? (
+                        <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                      ) : (
+                        <Zap className="h-3.5 w-3.5" />
+                      )}
+                      Actie nu afronden &amp; Verzoeken genereren
+                    </Button>
+                  )}
+                  {!doel.is_actief && (
+                    <Button size="sm" variant="ghost" onClick={() => toonBetaalverzoeken(doel.id)}>
+                      <Receipt className="h-3.5 w-3.5" />
+                      {betaalverzoekenGetoond ? "Verberg betaalverzoeken" : "Bekijk betaalverzoeken"}
+                    </Button>
+                  )}
+                </div>
+
+                {betaalverzoekenGetoond && (
+                  <div className="mt-2 rounded-lg bg-gray-50 px-3">
+                    {betaalverzoekenLadend ? (
+                      <div className="flex justify-center py-4">
+                        <Loader2 className="h-4 w-4 animate-spin text-gray-400" />
+                      </div>
+                    ) : (
+                      <BetaalverzoekenLijst betaalverzoeken={betaalverzoekenPerDoel.get(doel.id) ?? []} />
+                    )}
+                  </div>
+                )}
               </div>
             );
           })}

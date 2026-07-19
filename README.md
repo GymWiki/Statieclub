@@ -364,6 +364,57 @@ verschillende situaties.
   (`?betaling=gelukt`) omdat de webhook net als bij Glas-naar-Kas niet
   gegarandeerd vóór de browser-redirect is verwerkt.
 
+### "Set and Forget" campagne-afrekening (migratie 0017)
+
+Automatiseert de Virtuele Portemonnee hierboven verder: een actie
+(`doelen` — dat is hier het "Acties"-concept uit de opdracht, zie de
+migratie voor de onderbouwing waarom er geen aparte tabel is
+bijgekomen) krijgt een optionele `end_date`. Zodra die datum passeert
+sluit de actie zichzelf en genereert automatisch een `Betaalverzoek`
+per speler met een opgespaard saldo — geen actie van de penningmeester
+nodig, vandaar "set and forget".
+
+- **`lib/actieAfronden.ts`** is de gedeelde aggregatie-logica, gebruikt
+  door zowel de dagelijkse cron (`GET /api/cron/close-acties`,
+  `CRON_SECRET`-beveiligd, zie `vercel.json`) als de handmatige
+  override-knop (`POST /api/doelen/[id]/afronden`) in
+  `DoelenBeheer.tsx` — beide paden lopen dus exact dezelfde code.
+- **Aggregatie**: pakt alle `'pending'` `statiegeld_inleveringen` van
+  de club die óf aan déze actie hangen, óf aan geen enkele actie hangen
+  (`doel_id is null` — bijv. na een eerdere rollover), groepeert per
+  speler. Boven `CAMPAGNE_AFREKENING_MINIMUM_EURO` (€1 — bewust veel
+  lager dan de vrijwillige `WALLET_PAYOUT_MINIMUM_EURO` van €20, want
+  dit is een eenmalig afsluitmoment, geen doorlopende spaarkeuze):
+  maakt een `betaalverzoeken`-rij aan en zet de rijen op
+  `'processed_for_payment'`. Eronder: `doel_id` wordt losgekoppeld
+  (rollover) maar de rij blijft `'pending'`, en schuift zo automatisch
+  door naar de eerstvolgende actie die sluit.
+- **`statiegeld_inleveringen.betaalverzoek_id`** is een directe
+  koppeling (niet enkel op status matchen) — een speler kan tegelijk
+  een ouder, nog niet betaald betaalverzoek hebben terwijl een nieuwe
+  actie sluit; zonder deze koppeling zou het webhook niet kunnen zien
+  welke rijen bij wélk betaalverzoek horen.
+- **`GET /api/checkout/[betaalverzoek_id]`**: on-the-fly Checkout
+  Session, bedoeld om rechtstreeks aangeklikt te worden (banner of
+  WhatsApp-link) — vandaar een `GET` die meteen naar Stripe
+  doorstuurt i.p.v. JSON terug te geven. Zelfde destination-charge-opzet
+  als de rest: geen `on_behalf_of`, dus Stripe's eigen vaste
+  verwerkingskosten vallen automatisch ten laste van de club, niet van
+  Statieclub — alleen de 5%-`application_fee_amount` (over het volledige
+  betaalverzoek-bedrag) gaat naar het platform.
+- **`BetaalverzoekBanner.tsx`** zit in `ClubShell.tsx` (dus zichtbaar op
+  élk scherm binnen de club-shell, niet pas op een aparte pagina) en
+  pollt periodiek `GET /api/betaalverzoeken?speler_id=...&status=open`
+  — verdwijnt vanzelf zodra het webhook de status op `'betaald'` zet.
+- **Admin** (`DoelenBeheer.tsx`): een `end_date`-veld bij het aanmaken
+  van een doel, de "Actie nu afronden & Verzoeken genereren"-knop
+  (alleen op actieve doelen), en per gesloten doel een lazy-geladen
+  lijst van gegenereerde betaalverzoeken met een "Deel via
+  WhatsApp"-knop (hergebruikt `bouwWhatsappUrl` — spelers hebben geen
+  telefoonnummer in het schema, dus dit valt altijd terug op de
+  algemene share-sheet zonder vaste ontvanger, net als de bestaande
+  team-uitnodigingsflow).
+
 ## Marketing-landingspagina (`app/page.tsx`)
 
 Losgekoppeld van de functionele donor-flow: `/` is een puur marketing-

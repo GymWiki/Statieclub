@@ -1,8 +1,19 @@
 import { Suspense } from "react";
 import { Loader2 } from "lucide-react";
+import { createClient } from "@/lib/supabase/server";
 import { Portemonnee } from "@/components/team/Portemonnee";
+import type { Doel } from "@/lib/types";
 
-export default function PortemonneePage() {
+export default async function PortemonneePage({ params }: { params: Promise<{ slug: string }> }) {
+  const { slug } = await params;
+  const supabase = await createClient();
+
+  const { data: club } = await supabase.from("clubs").select("id").eq("slug", slug).single();
+
+  const { data: doelen } = club
+    ? await supabase.from("doelen").select("*").eq("club_id", club.id).eq("is_actief", true).order("created_at")
+    : { data: [] };
+
   return (
     <Suspense
       fallback={
@@ -11,7 +22,7 @@ export default function PortemonneePage() {
         </div>
       }
     >
-      <Portemonnee />
+      <Portemonnee doelen={(doelen as Doel[]) ?? []} />
     </Suspense>
   );
 }

@@ -150,6 +150,16 @@ export const TRANSACTIEKOSTEN_EURO = 0.35;
  */
 export const WALLET_PAYOUT_MINIMUM_EURO = 20;
 
+/**
+ * Drempel voor de "Set and Forget" campagne-afrekening (migratie
+ * 0017/lib/actieAfronden.ts): lager dan de vrijwillige
+ * WALLET_PAYOUT_MINIMUM_EURO omdat dit een eenmalig afsluitmoment is
+ * (de actie sluit toch al) i.p.v. een doorlopende spaarkeuze — onder
+ * dit bedrag schuift het saldo door naar de volgende actie i.p.v. een
+ * betaalverzoek van een paar cent te genereren.
+ */
+export const CAMPAGNE_AFREKENING_MINIMUM_EURO = 1;
+
 // ─────────────────────────────────────────────────────────────
 // Anoniem chatsysteem (speler ↔ donateur)
 // ─────────────────────────────────────────────────────────────

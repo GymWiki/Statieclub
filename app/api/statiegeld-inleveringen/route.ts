@@ -32,11 +32,24 @@ export async function GET(request: NextRequest) {
  * POST /api/statiegeld-inleveringen
  * Registreert een zelf ingeleverd statiegeldbonnetje als 'pending' —
  * het clublid heeft het geld zelf, en spaart dit saldo op totdat het
- * de €20-drempel haalt om in één keer via iDEAL af te rekenen (zie
- * POST /api/stripe/create-checkout-session, scenario 'wallet_payout').
+ * ofwel de €20-drempel haalt om zelf via iDEAL af te rekenen (zie
+ * POST /api/stripe/create-checkout-session, scenario 'wallet_payout'),
+ * ofwel de actie (`doel_id`) sluit en er automatisch een betaalverzoek
+ * voor wordt gegenereerd (migratie 0017, zie lib/actieAfronden.ts).
+ *
+ * `doel_id` is optioneel: weggelaten of geen actieve actie gekozen
+ * betekent dat het bonnetje aan geen enkele actie hangt — het telt dan
+ * gewoon mee zodra de eerstvolgende actie van deze club wordt
+ * afgerond.
  */
 export async function POST(request: NextRequest) {
-  const { speler_id: spelerId, club_id: clubId, bedrag, image_url: imageUrl } = await request.json();
+  const {
+    speler_id: spelerId,
+    club_id: clubId,
+    doel_id: doelId,
+    bedrag,
+    image_url: imageUrl,
+  } = await request.json();
 
   if (!spelerId || !clubId) {
     return NextResponse.json({ error: "speler_id en club_id zijn verplicht." }, { status: 400 });
@@ -62,11 +75,27 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ error: "Deze speler hoort niet bij deze club." }, { status: 403 });
   }
 
+  let geldigeDoelId: string | null = null;
+  if (doelId) {
+    const { data: doel } = await supabase
+      .from("doelen")
+      .select("id")
+      .eq("id", doelId)
+      .eq("club_id", clubId)
+      .eq("is_actief", true)
+      .maybeSingle();
+    if (!doel) {
+      return NextResponse.json({ error: "Deze actie bestaat niet (meer) of is niet actief." }, { status: 400 });
+    }
+    geldigeDoelId = doel.id;
+  }
+
   const { data: inlevering, error: insertError } = await supabase
     .from("statiegeld_inleveringen")
     .insert({
       speler_id: spelerId,
       club_id: clubId,
+      doel_id: geldigeDoelId,
       bedrag: bedragEuro,
       image_url: imageUrl || null,
     })

@@ -44,6 +44,8 @@ export interface Doel {
   doelbedrag: number;
   opgehaald_bedrag: number;
   is_actief: boolean;
+  /** Optioneel: wanneer gezet, sluit /api/cron/close-acties dit doel automatisch en genereert betaalverzoeken (migratie 0017). */
+  end_date: string | null;
   created_at: string;
   updated_at: string;
 }
@@ -335,22 +337,55 @@ export interface WalletPayoutCheckoutInput {
 
 export type StripeCheckoutInput = DonationCheckoutInput | WalletPayoutCheckoutInput;
 
-export type StatiegeldInleveringStatus = "pending" | "paid";
+/**
+ * 'pending' -> 'processed_for_payment' (meegenomen in een
+ * betaalverzoek bij het afronden van een actie, migratie 0017) ->
+ * 'paid' (zodra dat betaalverzoek is afgerekend). Een rij kan ook
+ * rechtstreeks van 'pending' naar 'paid' gaan via de handmatige
+ * "Reken af via iDEAL"-knop in de Virtuele Portemonnee, zonder ooit
+ * een betaalverzoek te doorlopen.
+ */
+export type StatiegeldInleveringStatus = "pending" | "processed_for_payment" | "paid";
 
 /**
  * Eén door een clublid zelf geregistreerd statiegeldbonnetje in de
  * Virtuele Portemonnee (migratie 0016) — losstaand van `Bonnetje`
  * (dat hoort bij de ophaal-/scan-flow en credit direct het team). Blijft
  * 'pending' totdat het (samen met andere pending-rijen van dezelfde
- * speler) via een Stripe-afrekening op 'paid' wordt gezet.
+ * speler) via een Stripe-afrekening op 'paid' wordt gezet — hetzij
+ * rechtstreeks (portemonnee-knop), hetzij via een automatisch
+ * gegenereerd `Betaalverzoek` bij het afronden van een actie.
  */
 export interface StatiegeldInlevering {
   id: string;
   speler_id: string;
   club_id: string;
+  /** Actie (doel) waar dit bonnetje aan toegeschreven wordt — null zodra het is doorgeschoven na een rollover (migratie 0017). */
+  doel_id: string | null;
+  /** Gezet zodra deze rij is meegenomen in een specifiek betaalverzoek (migratie 0017). */
+  betaalverzoek_id: string | null;
   bedrag: number;
   status: StatiegeldInleveringStatus;
   image_url: string | null;
   stripe_checkout_session_id: string | null;
   created_at: string;
+}
+
+export type BetaalverzoekStatus = "open" | "betaald";
+
+/**
+ * Automatisch gegenereerd zodra een actie (doel) sluit en een speler
+ * minimaal €1 aan opgespaard statiegeld heeft — de "Set and Forget"
+ * campagne-afrekening (migratie 0017). Eén rij per speler per actie.
+ */
+export interface Betaalverzoek {
+  id: string;
+  speler_id: string;
+  club_id: string;
+  doel_id: string | null;
+  bedrag: number;
+  status: BetaalverzoekStatus;
+  stripe_checkout_session_id: string | null;
+  created_at: string;
+  updated_at: string;
 }

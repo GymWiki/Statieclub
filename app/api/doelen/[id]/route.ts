@@ -3,20 +3,25 @@ import { createClient, createServiceRoleClient } from "@/lib/supabase/server";
 
 /**
  * PATCH /api/doelen/[id]
- * Werkt een doel bij: `is_actief` (campagne sluiten/heropenen) en/of
+ * Werkt een doel bij: `is_actief` (campagne sluiten/heropenen),
  * `team_ids` (welke teams dit doel mogen steunen — weggelaten of leeg
- * betekent open voor alle teams van de club, zie migratie 0012).
- * Beide velden zijn optioneel maar minstens één moet aanwezig zijn.
+ * betekent open voor alle teams van de club, zie migratie 0012) en/of
+ * `end_date` (wanneer de dagelijkse cron dit doel automatisch moet
+ * afronden, zie migratie 0017). Minstens één veld moet aanwezig zijn.
  * Alleen voor een beheerder van de club waar dit doel bij hoort.
  */
 export async function PATCH(request: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   const { id } = await params;
-  const { is_actief, team_ids } = await request.json();
+  const { is_actief, team_ids, end_date: endDate } = await request.json();
 
   const wilIsActiefWijzigen = typeof is_actief === "boolean";
   const wilTeamsWijzigen = Array.isArray(team_ids);
-  if (!wilIsActiefWijzigen && !wilTeamsWijzigen) {
-    return NextResponse.json({ error: "is_actief of team_ids is verplicht." }, { status: 400 });
+  const wilEindDatumWijzigen = endDate !== undefined;
+  if (!wilIsActiefWijzigen && !wilTeamsWijzigen && !wilEindDatumWijzigen) {
+    return NextResponse.json({ error: "is_actief, team_ids of end_date is verplicht." }, { status: 400 });
+  }
+  if (wilEindDatumWijzigen && endDate !== null && Number.isNaN(new Date(endDate).getTime())) {
+    return NextResponse.json({ error: "Ongeldige einddatum." }, { status: 400 });
   }
 
   const authedSupabase = await createClient();
@@ -51,6 +56,13 @@ export async function PATCH(request: NextRequest, { params }: { params: Promise<
     const { error: updateError } = await service.from("doelen").update({ is_actief }).eq("id", id);
     if (updateError) {
       return NextResponse.json({ error: updateError.message }, { status: 500 });
+    }
+  }
+
+  if (wilEindDatumWijzigen) {
+    const { error: eindDatumError } = await service.from("doelen").update({ end_date: endDate }).eq("id", id);
+    if (eindDatumError) {
+      return NextResponse.json({ error: eindDatumError.message }, { status: 500 });
     }
   }
 
