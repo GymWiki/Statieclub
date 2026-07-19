@@ -23,13 +23,18 @@ export function OphaalFlow({
   clubNaam,
   doelen,
   glasServiceBeschikbaar,
+  initieelType,
 }: {
   clubId: string;
   clubNaam: string;
   doelen: Doel[];
   glasServiceBeschikbaar: boolean;
+  /** Vooringesteld type, bijv. vanuit een `?type=glasbak`-link op promotiemateriaal (zie lib/promo.ts). */
+  initieelType?: OphaalType | null;
 }) {
-  const [gekozenType, setGekozenType] = useState<OphaalType | null>(null);
+  const [gekozenType, setGekozenType] = useState<OphaalType | null>(
+    initieelType === "glasbak" && glasServiceBeschikbaar ? "glasbak" : initieelType === "statiegeld" ? "statiegeld" : null
+  );
 
   if (gekozenType === "statiegeld") {
     return <OphaalForm clubId={clubId} clubNaam={clubNaam} doelen={doelen} onTerug={() => setGekozenType(null)} />;

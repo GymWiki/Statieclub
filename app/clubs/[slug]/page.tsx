@@ -8,8 +8,15 @@ import { Card } from "@/components/ui/Card";
 import { formatEuro, formatVoortgang } from "@/lib/utils";
 import type { Club, Doel } from "@/lib/types";
 
-export default async function ClubDetailPage({ params }: { params: Promise<{ slug: string }> }) {
+export default async function ClubDetailPage({
+  params,
+  searchParams,
+}: {
+  params: Promise<{ slug: string }>;
+  searchParams: Promise<{ type?: string }>;
+}) {
   const { slug } = await params;
+  const { type } = await searchParams;
   const supabase = await createClient();
 
   const { data: club } = await supabase
@@ -84,6 +91,7 @@ export default async function ClubDetailPage({ params }: { params: Promise<{ slu
             clubNaam={club.naam}
             doelen={actieveDoelen}
             glasServiceBeschikbaar={glasServiceBeschikbaar}
+            initieelType={type === "glasbak" || type === "statiegeld" ? type : null}
           />
         </div>
       )}

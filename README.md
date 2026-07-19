@@ -741,6 +741,60 @@ handmatige conceptfactuur.
   `components/ui/Toggle.tsx`): een herbruikbare toggle-switch, één per
   team, met `PATCH /api/teams/[id]`.
 
+## Promotiemateriaal: downloadbare flyers/posters (`/admin/[slug]/promotie`)
+
+Een "Promotie"-tab in `AdminTabs.tsx` geeft besturen toegang tot kant-en-
+klare, gepersonaliseerde flyers/posters om offline campagne te voeren
+(bijv. ophangen bij de supermarkt) voor de Glas-naar-Kas-service.
+
+- **Route-substitutie t.o.v. de opdracht**: de opdracht noemt een QR-
+  bestemming `statieclub.nl/steun/[club_slug]`, maar die route heeft
+  nooit bestaan in deze codebase. De echte, functionerende donor-
+  landingspagina is `/clubs/[slug]` (`app/clubs/[slug]/page.tsx`).
+  `lib/promo.ts#getPromoLink` bouwt daarom `NEXT_PUBLIC_SITE_URL +
+  /clubs/[slug]?type=glasbak` — de nieuwe `?type=`-parameter (zie
+  hieronder) laat die pagina bovendien direct de Glas-naar-Kas-form
+  openen i.p.v. het generieke keuzescherm, zodat de QR-code op de
+  flyer ook daadwerkelijk naar de flow springt die erop wordt beloofd.
+- **`OphaalFlow.tsx`**: accepteert nu een optionele `initieelType`-prop
+  (`'statiegeld' | 'glasbak' | null`). `ClubDetailPage` leest
+  `searchParams.type` en geeft die door — alleen als
+  `glasServiceBeschikbaar` ook echt waar is (anders blijft het gewone
+  keuzescherm staan, want anders zou een deep-link naar een
+  niet-beschikbare service leiden).
+- **`lib/promo.ts#PROMO_TEMPLATES`**: een catalogus van de drie
+  categorieën uit de opdracht (A4-poster, A5-flyer, social-vierkant)
+  met per formaat het fysieke paginaformaat (mm, voor de PDF-export)
+  en een streef-exportbreedte in pixels (≈300dpi voor de printformaten,
+  1080px — de Instagram-standaard — voor social).
+- **`PromoCard.tsx`**: de downloadbare preview. Toont de exacte,
+  verplichte copy ("Geen zin in gedoe bij de automaat?...") met een
+  live QR-code (`qrcode.react`) die naar `getPromoLink(club.slug)`
+  wijst, in twee layout-varianten — een print-layout (paginagroot,
+  violet Glas-naar-Kas-accent, conform de bestaande kleurcode voor die
+  service) voor A4/A5, en een compactere, donkere Instagram-achtige
+  social-layout. **Belangrijke valkuil die hier is opgelost**: de
+  preview-kaart gebruikt een vaste pixel-`width`/`height` (via inline
+  `style`, berekend uit `pdfFormaat`) in plaats van een Tailwind
+  `aspect-*`-klasse — die laatste werd eerst geprobeerd als
+  string-veld in `lib/promo.ts`, maar Tailwind's `content`-scanner
+  dekt alleen `./app/**` en `./components/**` (niet `./lib/**`), dus
+  zulke dynamisch-vanuit-`lib/`-aangeleverde klassenamen worden nooit
+  gegenereerd. Zonder een harde breedte/hoogte liep de kaart daardoor
+  leeg op haar content-hoogte i.p.v. het bedoelde formaat, wat een
+  PDF-export scheefgetrokken zou hebben opgeleverd (een vierkante PNG
+  in een niet-vierkante paginabox). Geverifieerd met een tijdelijke
+  Playwright-fixture: de PNG-export komt nu exact op de bedoelde
+  pixel-afmetingen uit (bijv. 1080×1080 voor social, niet 1080×1635).
+- **Export**: `html-to-image#toPng` rasterizeert de preview-ref op een
+  `pixelRatio` die on-the-fly wordt berekend (`exportPixelWidth /
+  node.offsetWidth`) — de kaart blijft compact in de grid, maar de
+  download is drukwerk-resolutie ongeacht hoe klein de kaart op het
+  scherm staat. Voor A4/A5 wordt diezelfde PNG in een `jsPDF`-pagina op
+  het exacte fysieke formaat (`unit: "mm"`, `format: [breedteMm,
+  hoogteMm]`) geplakt; social heeft geen `pdfFormaat` en toont dus
+  alleen een PNG-downloadknop.
+
 ## Gamification: spelers, badges en streaks
 
 Bovenop de team-brede punten/euro's krijgt elke speler nu ook een eigen,
