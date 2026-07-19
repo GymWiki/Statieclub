@@ -116,12 +116,39 @@ export interface GlasNaarKasOptie {
   label: string;
 }
 
-/** Vaste donatiebedragen voor de "Glas-naar-Kas"-service — bewust geen vrij invoerveld, houdt de betaalstap simpel. */
+/**
+ * Price anchoring: drie prominente bedrag-knoppen, plus een "ander
+ * bedrag"-invoerveld (zie GLAS_NAAR_KAS_MINIMUM_EURO) voor wie liever
+ * zelf een bedrag kiest — de knoppen blijven het gemiddelde
+ * donatiebedrag sturen richting de hogere kant.
+ */
 export const GLAS_NAAR_KAS_OPTIES: GlasNaarKasOptie[] = [
-  { bedrag: 5, label: "Standaard" },
-  { bedrag: 10, label: "Royaal" },
-  { bedrag: 15, label: "Held" },
+  { bedrag: 10, label: "Gewaardeerd" },
+  { bedrag: 15, label: "Genereus" },
+  { bedrag: 25, label: "Held" },
 ];
+
+/** Minimumbedrag voor een vrij ingevulde Glas-naar-Kas-donatie. */
+export const GLAS_NAAR_KAS_MINIMUM_EURO = 5;
+
+/**
+ * Vaste Stripe/iDEAL-transactiekosten die de donateur optioneel
+ * bovenop zijn donatie kan bijleggen ("Ik betaal de transactiekosten"),
+ * zodat de club het volledige donatiebedrag overhoudt i.p.v. dat de
+ * verwerkingskosten daarvan afgaan.
+ */
+export const TRANSACTIEKOSTEN_EURO = 0.35;
+
+// ─────────────────────────────────────────────────────────────
+// Virtuele Portemonnee (clubleden die zelf statiegeld inleveren)
+// ─────────────────────────────────────────────────────────────
+
+/**
+ * Minimumsaldo vóór een clublid via iDEAL kan afrekenen — spreidt de
+ * vaste transactiekosten uit over meerdere kleine bonnetjes i.p.v. per
+ * bonnetje afzonderlijk af te rekenen.
+ */
+export const WALLET_PAYOUT_MINIMUM_EURO = 20;
 
 // ─────────────────────────────────────────────────────────────
 // Anoniem chatsysteem (speler ↔ donateur)

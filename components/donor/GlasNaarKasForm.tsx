@@ -2,12 +2,18 @@
 
 import { FormEvent, useEffect, useState } from "react";
 import { motion, AnimatePresence } from "framer-motion";
-import { ArrowLeft, Loader2, Smartphone, Wine } from "lucide-react";
+import { ArrowLeft, Loader2, PenLine, Smartphone, Wine } from "lucide-react";
 import { Button } from "@/components/ui/Button";
 import { Input, Label } from "@/components/ui/Input";
 import { Card } from "@/components/ui/Card";
 import { laadDonorProfiel, bewaarDonorProfiel } from "@/lib/donorProfile";
-import { cn, formatEuro, GLAS_NAAR_KAS_OPTIES } from "@/lib/utils";
+import {
+  cn,
+  formatEuro,
+  GLAS_NAAR_KAS_MINIMUM_EURO,
+  GLAS_NAAR_KAS_OPTIES,
+  TRANSACTIEKOSTEN_EURO,
+} from "@/lib/utils";
 import type { Doel } from "@/lib/types";
 
 type Stap = "gegevens" | "bedrag" | "starten" | "fout";
@@ -43,8 +49,13 @@ export function GlasNaarKasForm({
   const [bekendeDonateur, setBekendeDonateur] = useState(false);
 
   const [bedrag, setBedrag] = useState<number | null>(null);
+  const [aangepastGekozen, setAangepastGekozen] = useState(false);
+  const [aangepastBedragInput, setAangepastBedragInput] = useState("");
+  const [coversFee, setCoversFee] = useState(true);
   const [stap, setStap] = useState<Stap>("gegevens");
   const [foutmelding, setFoutmelding] = useState<string | null>(null);
+
+  const totaalTeBetalen = bedrag !== null ? Math.round((bedrag + (coversFee ? TRANSACTIEKOSTEN_EURO : 0)) * 100) / 100 : null;
 
   useEffect(() => {
     const profiel = laadDonorProfiel();
@@ -63,6 +74,25 @@ export function GlasNaarKasForm({
     setStap("bedrag");
   }
 
+  function kiesPreset(waarde: number) {
+    setAangepastGekozen(false);
+    setAangepastBedragInput("");
+    setBedrag(waarde);
+  }
+
+  function kiesAangepastBedrag() {
+    setAangepastGekozen(true);
+    setBedrag(null);
+  }
+
+  function wijzigAangepastBedrag(waarde: string) {
+    setAangepastBedragInput(waarde);
+    const getal = parseFloat(waarde.replace(",", "."));
+    setBedrag(
+      Number.isFinite(getal) && getal >= GLAS_NAAR_KAS_MINIMUM_EURO ? Math.round(getal * 100) / 100 : null
+    );
+  }
+
   async function starteBetaling() {
     if (!bedrag) return;
     setStap("starten");
@@ -73,6 +103,7 @@ export function GlasNaarKasForm({
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
+          type: "donation",
           naam,
           email,
           adres,
@@ -81,6 +112,7 @@ export function GlasNaarKasForm({
           club_id: clubId,
           doel_id: doelId,
           bedrag,
+          coversFee,
           opmerking,
         }),
       });
@@ -193,14 +225,14 @@ export function GlasNaarKasForm({
               Dit bedrag gaat naar de clubkas van {clubNaam} — een team ruimt jouw glas/papier voor je op.
             </p>
 
-            <div className="mt-4 grid grid-cols-3 gap-2.5">
+            <div className="mt-4 grid grid-cols-2 gap-2.5">
               {GLAS_NAAR_KAS_OPTIES.map((optie) => (
                 <button
                   key={optie.bedrag}
-                  onClick={() => setBedrag(optie.bedrag)}
+                  onClick={() => kiesPreset(optie.bedrag)}
                   className={cn(
                     "rounded-2xl border-2 p-4 text-center transition-colors",
-                    bedrag === optie.bedrag
+                    !aangepastGekozen && bedrag === optie.bedrag
                       ? "border-violet-500 bg-violet-50"
                       : "border-gray-200 hover:border-gray-300"
                   )}
@@ -209,11 +241,51 @@ export function GlasNaarKasForm({
                   <p className="mt-0.5 text-xs font-medium text-gray-500">{optie.label}</p>
                 </button>
               ))}
+              <button
+                onClick={kiesAangepastBedrag}
+                className={cn(
+                  "flex flex-col items-center justify-center gap-1 rounded-2xl border-2 p-4 text-center transition-colors",
+                  aangepastGekozen ? "border-violet-500 bg-violet-50" : "border-gray-200 hover:border-gray-300"
+                )}
+              >
+                <PenLine className="h-4 w-4 text-gray-500" />
+                <p className="text-xs font-medium text-gray-500">Ander bedrag</p>
+              </button>
             </div>
+
+            {aangepastGekozen && (
+              <div className="mt-3">
+                <Label htmlFor="glas-aangepast-bedrag">Jouw bedrag (minimaal {formatEuro(GLAS_NAAR_KAS_MINIMUM_EURO)})</Label>
+                <Input
+                  id="glas-aangepast-bedrag"
+                  type="number"
+                  min={GLAS_NAAR_KAS_MINIMUM_EURO}
+                  step="0.5"
+                  inputMode="decimal"
+                  autoFocus
+                  value={aangepastBedragInput}
+                  onChange={(e) => wijzigAangepastBedrag(e.target.value)}
+                  placeholder={`Bijv. ${GLAS_NAAR_KAS_MINIMUM_EURO}`}
+                />
+              </div>
+            )}
+
+            <label className="mt-5 flex cursor-pointer items-start gap-3 rounded-xl border border-gray-200 bg-gray-50 p-3.5">
+              <input
+                type="checkbox"
+                checked={coversFee}
+                onChange={(e) => setCoversFee(e.target.checked)}
+                className="mt-0.5 h-4 w-4 shrink-0 rounded border-gray-300 text-violet-600 focus:ring-violet-500/30"
+              />
+              <span className="text-sm text-gray-700">
+                Ik betaal de transactiekosten ({formatEuro(TRANSACTIEKOSTEN_EURO)}), zodat de club 100% van mijn
+                donatie ontvangt.
+              </span>
+            </label>
 
             <Button className="mt-5 w-full" size="lg" disabled={!bedrag} onClick={starteBetaling}>
               <Smartphone className="h-4 w-4" />
-              {bedrag ? `Doneer ${formatEuro(bedrag)} via iDeal` : "Kies eerst een bedrag"}
+              {totaalTeBetalen ? `Doneer ${formatEuro(totaalTeBetalen)} via iDeal` : "Kies eerst een bedrag"}
             </Button>
           </motion.div>
         )}

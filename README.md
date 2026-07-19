@@ -300,6 +300,70 @@ voor de volledige onderbouwing van die knip.
   `STRIPE_WEBHOOK_SECRET`, `NEXT_PUBLIC_SITE_URL` (voor Stripe's
   success-/cancel-/return-URL's).
 
+### Kosten-geoptimaliseerde betalingen: price anchoring, fee-cover en de Virtuele Portemonnee
+
+Vaste Stripe/iDEAL-transactiekosten wegen zwaar op kleine bedragen —
+migratie `0016_statiegeld_inleveringen.sql` en een aantal gerichte
+uitbreidingen op de Stripe-laag hierboven pakken dat langs twee
+sporen aan.
+
+**1. Glas-naar-Kas: hoger gemiddeld donatiebedrag.** `GlasNaarKasForm.tsx`
+gebruikt price anchoring (`GLAS_NAAR_KAS_OPTIES` in `lib/utils.ts`:
+€10/€15/€25, plus een "Ander bedrag"-veld met een minimum van
+`GLAS_NAAR_KAS_MINIMUM_EURO` = €5) en een standaard-aangevinkte
+"transactiekosten dekken"-checkbox. Bij `create-checkout-session`
+(scenario `'donation'`) telt de server, ALLEEN als `coversFee: true`
+is meegegeven, `TRANSACTIEKOSTEN_EURO` (€0,35) op bij het te betalen
+`unit_amount` — de 5%-`application_fee_amount` blijft berekend over
+het oorspronkelijke donatiebedrag, nooit over die surcharge. Alle
+bedragen worden in centen (integers) opgeteld i.p.v. met floats, om
+afrondingsverschillen tussen wat de donateur ziet en wat Stripe
+uiteindelijk in rekening brengt te voorkomen.
+
+**2. Virtuele Portemonnee: gebundelde afrekening voor clubleden**
+(`/club/[slug]/portemonnee`). Een clublid dat zelf flessen inlevert
+bij de supermarkt houdt het statiegeld zelf en betaalt het bedrag zelf
+terug aan de club — maar pas in één keer zodra het gespaarde saldo de
+`WALLET_PAYOUT_MINIMUM_EURO`-drempel (€20) haalt, i.p.v. per bonnetje
+apart af te rekenen. Dit is een fundamenteel ander mechanisme dan
+"Scan Eigen Statiegeld" (migratie 0008): daar gaat het geld nog
+gewoon fysiek naar de club en is de bonnetjes-rij puur een
+scoreregistratie; hier bestaat er geen fysieke overdracht en is een
+échte Stripe-betaling nodig. Beide bestaan naast elkaar, voor
+verschillende situaties.
+
+- **`statiegeld_inleveringen`** (migratie 0016): `speler_id` i.p.v.
+  het gevraagde `user_id` — deze app heeft geen Supabase Auth voor
+  clubleden (zie `lib/playerIdentity.ts`), dus `spelers.id` is de
+  enige bestaande "gebruiker"-identiteit. Zelfde vertrouwensmodel als
+  `bonnetjes`: RLS aan, geen publieke policies, uitsluitend via
+  `POST`/`GET /api/statiegeld-inleveringen` (service-role) en het
+  Stripe-webhook.
+- **`StatiegeldRegistreren.tsx`**: bedrag + optionele bonnetje-foto
+  (hergebruikt de bestaande publieke `bonnetjes`-storage-bucket) →
+  `POST /api/statiegeld-inleveringen`, status altijd `'pending'`.
+- **`StatiegeldSaldo.tsx`**: telt alle `'pending'`-rijen van de speler
+  op; de "Reken af via iDEAL"-knop is disabled zolang het saldo onder
+  €20 zit ("Spaar door tot €20 om af te rekenen"), zowel client-side
+  (UX) als server-side (afgedwongen in `create-checkout-session`).
+- **`create-checkout-session`, scenario `'wallet_payout'`**: leidt
+  `club_id` altijd af van de speler zelf (nooit blind vertrouwd
+  vanuit de client), telt de `'pending'`-rijen in centen op, en
+  **stempelt exact die rij-id's** met de nieuwe
+  `stripe_checkout_session_id` vóórdat de checkout-URL wordt
+  teruggegeven. Dat voorkomt een race condition: een bonnetje dat de
+  gebruiker ná het starten van de afrekening toevoegt, mag nooit per
+  ongeluk in diezelfde betaling worden meegenomen door de webhook.
+- **Webhook**: `checkout.session.completed` dispatcht voortaan op
+  `session.metadata.type`. Voor `'wallet_payout'`: `update
+  statiegeld_inleveringen set status = 'paid' where
+  stripe_checkout_session_id = session.id and status = 'pending'` —
+  vanzelf idempotent, want een herhaalde aflevering van hetzelfde
+  event vindt de tweede keer niets meer om bij te werken.
+- De Portemonnee-pagina pollt kort na een geslaagde afrekening
+  (`?betaling=gelukt`) omdat de webhook net als bij Glas-naar-Kas niet
+  gegarandeerd vóór de browser-redirect is verwerkt.
+
 ## Marketing-landingspagina (`app/page.tsx`)
 
 Losgekoppeld van de functionele donor-flow: `/` is een puur marketing-

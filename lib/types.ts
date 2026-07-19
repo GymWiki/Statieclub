@@ -300,8 +300,14 @@ export interface OphaalformulierInput {
   opmerking?: string;
 }
 
-/** Body voor POST /api/stripe/create-checkout-session — start een echte Stripe-betaling voor een 'glasbak'-donatie (migratie 0015). */
-export interface GlasCheckoutInput {
+/**
+ * Body voor POST /api/stripe/create-checkout-session, scenario A —
+ * start een echte Stripe-betaling voor een 'glasbak'-donatie (migratie
+ * 0015/0016). `bedrag` is het oorspronkelijke donatiebedrag, ZONDER de
+ * eventuele transactiekosten-surcharge (die telt de server op).
+ */
+export interface DonationCheckoutInput {
+  type: "donation";
   naam: string;
   email: string;
   adres: string;
@@ -310,5 +316,41 @@ export interface GlasCheckoutInput {
   club_id: string;
   doel_id: string;
   bedrag: number;
+  /** True (standaard) als de donateur ook de €0,35-transactiekosten voor zijn rekening neemt. */
+  coversFee: boolean;
   opmerking?: string;
+}
+
+/**
+ * Body voor POST /api/stripe/create-checkout-session, scenario B —
+ * rekent het volledige openstaande saldo van een clublid in één keer
+ * af (migratie 0016). `club_id` wordt server-side genegeerd/geverifieerd
+ * aan de hand van de speler zelf — nooit blind vertrouwd vanuit de client.
+ */
+export interface WalletPayoutCheckoutInput {
+  type: "wallet_payout";
+  speler_id: string;
+  club_id: string;
+}
+
+export type StripeCheckoutInput = DonationCheckoutInput | WalletPayoutCheckoutInput;
+
+export type StatiegeldInleveringStatus = "pending" | "paid";
+
+/**
+ * Eén door een clublid zelf geregistreerd statiegeldbonnetje in de
+ * Virtuele Portemonnee (migratie 0016) — losstaand van `Bonnetje`
+ * (dat hoort bij de ophaal-/scan-flow en credit direct het team). Blijft
+ * 'pending' totdat het (samen met andere pending-rijen van dezelfde
+ * speler) via een Stripe-afrekening op 'paid' wordt gezet.
+ */
+export interface StatiegeldInlevering {
+  id: string;
+  speler_id: string;
+  club_id: string;
+  bedrag: number;
+  status: StatiegeldInleveringStatus;
+  image_url: string | null;
+  stripe_checkout_session_id: string | null;
+  created_at: string;
 }

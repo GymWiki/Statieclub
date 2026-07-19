@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { Trophy, PinIcon, Camera, UserRound } from "lucide-react";
+import { Trophy, PinIcon, Camera, UserRound, Wallet } from "lucide-react";
 import { cn } from "@/lib/utils";
 
 export function BottomNav({ clubSlug }: { clubSlug: string }) {
@@ -12,6 +12,7 @@ export function BottomNav({ clubSlug }: { clubSlug: string }) {
     { href: `/club/${clubSlug}/leaderboard`, label: "Scorebord", icon: Trophy },
     { href: `/club/${clubSlug}/prikbord`, label: "Prikbord", icon: PinIcon },
     { href: `/club/${clubSlug}/upload`, label: "Bonnetje", icon: Camera },
+    { href: `/club/${clubSlug}/portemonnee`, label: "Portemonnee", icon: Wallet },
     { href: `/club/${clubSlug}/profiel`, label: "Profiel", icon: UserRound },
   ];
 

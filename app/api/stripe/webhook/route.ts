@@ -14,11 +14,16 @@ import { stripeClient } from "@/lib/stripe";
  * bytes zoals Stripe ze verstuurde.
  *
  * Luistert naar:
- * - `checkout.session.completed`: maakt de `ophaalverzoeken`-rij voor
- *   een betaalde "Glas-naar-Kas"-donatie aan (bewust pas hier, niet
- *   vooraf — zie create-checkout-session). Idempotent via de unieke
- *   `stripe_checkout_session_id`-kolom, want Stripe kan hetzelfde event
- *   meermaals afleveren.
+ * - `checkout.session.completed`, gedispatcht op `session.metadata.type`:
+ *   - 'donation': maakt de `ophaalverzoeken`-rij voor een betaalde
+ *     "Glas-naar-Kas"-donatie aan (bewust pas hier, niet vooraf — zie
+ *     create-checkout-session). Idempotent via de unieke
+ *     `stripe_checkout_session_id`-kolom op `ophaalverzoeken`.
+ *   - 'wallet_payout': zet exact de `statiegeld_inleveringen`-rijen die
+ *     bij het aanmaken van de sessie zijn gestempeld
+ *     (`stripe_checkout_session_id`) op 'paid'. Idempotent via de
+ *     `status = 'pending'`-voorwaarde: een herhaalde aflevering van
+ *     hetzelfde event vindt de tweede keer niets meer om bij te werken.
  * - `account.updated`: zet `clubs.onboarding_complete` zodra Stripe
  *   bevestigt dat het Express-account klaar is om te ontvangen.
  *
@@ -51,6 +56,21 @@ export async function POST(request: NextRequest) {
     const session = event.data.object as Stripe.Checkout.Session;
 
     if (session.payment_status !== "paid") {
+      return NextResponse.json({ ontvangen: true });
+    }
+
+    if (session.metadata?.type === "wallet_payout") {
+      const { error } = await service
+        .from("statiegeld_inleveringen")
+        .update({ status: "paid" })
+        .eq("stripe_checkout_session_id", session.id)
+        .eq("status", "pending");
+
+      if (error) {
+        console.error("[stripe webhook] kon portemonnee-inleveringen niet bijwerken:", error);
+        return NextResponse.json({ error: "Kon inleveringen niet bijwerken." }, { status: 500 });
+      }
+
       return NextResponse.json({ ontvangen: true });
     }
 
