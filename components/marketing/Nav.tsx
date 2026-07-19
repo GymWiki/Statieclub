@@ -5,6 +5,7 @@ import Link from "next/link";
 import { AnimatePresence, motion } from "framer-motion";
 import { Menu, X, ChevronDown, Bike, ShieldCheck, type LucideIcon } from "lucide-react";
 import { cn } from "@/lib/utils";
+import type { RolKey } from "@/lib/rollen";
 
 const links = [{ href: "#hoe-het-werkt", label: "Hoe het werkt" }];
 
@@ -30,7 +31,13 @@ const inlogOpties: InlogOptie[] = [
   },
 ];
 
-export function Nav() {
+/**
+ * `onKiesRol` licht de "Voor Besturen"-link op om, naast het scrollen
+ * naar de Features-sectie, ook de globale `activeRole` in
+ * `LandingPageContainer` op 'bestuur' te zetten — zo landt de bezoeker
+ * meteen in de juiste, rol-specifieke content i.p.v. een neutrale sectie.
+ */
+export function Nav({ onKiesRol }: { onKiesRol?: (rol: RolKey) => void }) {
   const [gescrold, setGescrold] = useState(false);
   const [mobielOpen, setMobielOpen] = useState(false);
   const [inlogOpen, setInlogOpen] = useState(false);
@@ -93,7 +100,8 @@ export function Nav() {
               </a>
             ))}
             <a
-              href="#voor-besturen"
+              href="#features"
+              onClick={() => onKiesRol?.("bestuur")}
               className="text-sm font-medium text-slate-500 transition-colors hover:text-slate-900"
             >
               Voor Besturen
@@ -175,8 +183,11 @@ export function Nav() {
                 </a>
               ))}
               <a
-                href="#voor-besturen"
-                onClick={() => setMobielOpen(false)}
+                href="#features"
+                onClick={() => {
+                  onKiesRol?.("bestuur");
+                  setMobielOpen(false);
+                }}
                 className="rounded-lg px-3 py-2.5 text-sm font-medium text-slate-600 hover:bg-slate-50"
               >
                 Voor Besturen

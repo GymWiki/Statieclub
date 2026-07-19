@@ -7,8 +7,7 @@ import { AnimatePresence, motion } from "framer-motion";
 import { Heart, Bike, BarChart3, MapPin, ArrowRight, Loader2, type LucideIcon } from "lucide-react";
 import { useFadeUpVariants } from "@/lib/motion";
 import { cn } from "@/lib/utils";
-
-type RolKey = "donateurs" | "clubleden" | "besturen";
+import type { RolKey } from "@/lib/rollen";
 
 interface RolContent {
   key: RolKey;
@@ -25,7 +24,7 @@ interface RolContent {
 
 const ROLLEN: RolContent[] = [
   {
-    key: "donateurs",
+    key: "donateur",
     tabLabel: "Voor Donateurs",
     icon: Heart,
     koptekst: (
@@ -44,7 +43,7 @@ const ROLLEN: RolContent[] = [
     accentRing: "focus-visible:ring-emerald-500/40",
   },
   {
-    key: "clubleden",
+    key: "lid",
     tabLabel: "Voor Clubleden",
     icon: Bike,
     koptekst: (
@@ -63,7 +62,7 @@ const ROLLEN: RolContent[] = [
     accentRing: "focus-visible:ring-amber-500/40",
   },
   {
-    key: "besturen",
+    key: "bestuur",
     tabLabel: "Voor Besturen",
     icon: BarChart3,
     koptekst: (
@@ -86,13 +85,21 @@ const ROLLEN: RolContent[] = [
 /**
  * Dynamische hero bovenaan de landingspagina: drie tabs wisselen
  * koptekst/subtekst/CTA (AnimatePresence-fade) zodat elke bezoeker
- * meteen de voor hén relevante boodschap ziet. De donateur-tab behoudt
- * de signature postcode-zoeker (met radar-ping) — de andere twee tabs
- * linken door naar hun eigen instapscherm, dat geen postcode nodig heeft.
+ * meteen de voor hén relevante boodschap ziet. De actieve rol is een
+ * lifted state uit `LandingPageContainer` — deze tabs sturen `onRoleChange`
+ * aan i.p.v. eigen state te houden, zodat alle secties op de pagina
+ * synchroon meewisselen. De donateur-tab behoudt de signature
+ * postcode-zoeker (met radar-ping) — de andere twee tabs linken door
+ * naar hun eigen instapscherm, dat geen postcode nodig heeft.
  */
-export function HeroSelector() {
-  const [actieveRol, setActieveRol] = useState<RolKey>("donateurs");
-  const rol = ROLLEN.find((r) => r.key === actieveRol)!;
+export function HeroSelector({
+  activeRole,
+  onRoleChange,
+}: {
+  activeRole: RolKey;
+  onRoleChange: (rol: RolKey) => void;
+}) {
+  const rol = ROLLEN.find((r) => r.key === activeRole)!;
   const item = useFadeUpVariants(16);
 
   return (
@@ -119,14 +126,14 @@ export function HeroSelector() {
           className="inline-flex rounded-full border border-slate-200 bg-white/70 p-1 shadow-sm backdrop-blur-xl"
         >
           {ROLLEN.map((r) => {
-            const actief = r.key === actieveRol;
+            const actief = r.key === activeRole;
             return (
               <button
                 key={r.key}
                 type="button"
                 role="tab"
                 aria-selected={actief}
-                onClick={() => setActieveRol(r.key)}
+                onClick={() => onRoleChange(r.key)}
                 className={cn(
                   "relative flex items-center gap-1.5 rounded-full px-4 py-2 text-sm font-semibold transition-colors focus-visible:outline-none focus-visible:ring-2",
                   rol.accentRing,
@@ -162,7 +169,7 @@ export function HeroSelector() {
 
             <p className="mt-6 max-w-xl text-lg text-slate-600">{rol.subtekst}</p>
 
-            {rol.key === "donateurs" ? (
+            {rol.key === "donateur" ? (
               <PostcodeZoeker accentBg={rol.accentBg} />
             ) : (
               <motion.div whileHover={{ scale: 1.02 }} whileTap={{ scale: 0.98 }} className="mt-10">
@@ -171,7 +178,7 @@ export function HeroSelector() {
                   className={cn(
                     "flex h-14 items-center justify-center gap-2 whitespace-nowrap rounded-full px-7 text-base font-semibold text-white shadow-lg transition-colors",
                     rol.accentBg,
-                    rol.key === "clubleden" ? "shadow-amber-500/20 hover:bg-amber-600" : "shadow-blue-500/20 hover:bg-blue-600"
+                    rol.key === "lid" ? "shadow-amber-500/20 hover:bg-amber-600" : "shadow-blue-500/20 hover:bg-blue-600"
                   )}
                 >
                   {rol.ctaLabel}

@@ -50,8 +50,8 @@ const VOORDELEN: Voordeel[] = [
 
 /**
  * "Meer opbrengst. Minder moeite." — het directe vergelijkingsargument
- * t.o.v. traditionele fondsenwerving (loten, koeken), geplaatst na de
- * bento-grid-showcase (ClubPitch) als sluitstuk vlak vóór de Faq.
+ * t.o.v. traditionele fondsenwerving (loten, koeken), rol-neutraal
+ * geplaatst tussen de rol-afhankelijke HowItWorks- en CallToAction-secties.
  */
 export function WhyBetter() {
   const item = useFadeUpVariants();

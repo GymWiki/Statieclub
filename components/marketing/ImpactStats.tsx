@@ -83,11 +83,11 @@ function StatKaart({
 
 /**
  * "De Harde Cijfers" — emotionele overtuigingssectie direct onder de
- * Role Selector: benadrukt hoeveel statiegeld er jaarlijks ongeclaimd
- * blijft, vóórdat de bezoeker bij de uitleg (HowItWorks) komt. Breekt
- * bewust met de lichte pagina (bg-slate-900) — zelfde donkere
- * behandeling als de bestuurders-sectie (ClubPitch) verderop, zodat
- * het niet als een losse stijlbreuk aanvoelt.
+ * rol-afhankelijke Features-sectie: benadrukt hoeveel statiegeld er
+ * jaarlijks ongeclaimd blijft, vóórdat de bezoeker bij de rol-afhankelijke
+ * uitleg (HowItWorks) komt. Breekt bewust met de lichte pagina
+ * (bg-slate-900) — zelfde donkere behandeling als de latere
+ * CallToAction-sectie, zodat het niet als een losse stijlbreuk aanvoelt.
  */
 export function ImpactStats() {
   const ref = useRef(null);

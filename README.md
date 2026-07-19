@@ -28,21 +28,52 @@ start (zie "Rolscheiding op de landingspagina" hieronder).
 
 ### Rolscheiding op de landingspagina
 
-De marketing-site (`app/page.tsx`) en de `Nav` maken de drie rollen nu
-expliciet uit elkaar in plaats van één generieke "voor clubs"-link:
+De marketing-site is een dynamisch, verhalend platform met een
+**"Global Role State"**-architectuur i.p.v. een statische
+informatiedump: `LandingPageContainer`
+(`components/marketing/LandingPageContainer.tsx`) beheert één
+`activeRole: RolKey` (`'bestuur' | 'lid' | 'donateur'`, gedefinieerd in
+`lib/rollen.ts`) en geeft die als prop door aan alle rol-bewuste
+secties, zodat de hele pagina in lockstap meewisselt zonder
+overbodige informatie van de andere rollen te tonen:
 
-- **Navbar** (`Nav.tsx`): een subtiele "Voor Besturen"-link scrollt naar
-  `ClubPitch` (`#voor-besturen`); de "Inloggen"-knop is een dropdown met
-  twee opties — "Inloggen als Speler" (`/speler`) en "Inloggen als
-  Penningmeester" (`/admin/login`). Zelfgebouwd (geen Radix/Headless UI
-  in de dependencies) met een click-outside- en Escape-handler; op
-  mobiel valt de dropdown terug op een platte lijst in het uitklapmenu.
-- **`RoleSelector`** (`components/marketing/RoleSelector.tsx`, direct
-  onder de Hero): drie Framer Motion-cards ("Ik wil doneren" →
-  `/donateren`, "Ik ben speler" → `/speler`, "Ik beheer een club" →
-  `/admin/nieuwe-club`) met een `whileHover={{ y: -6 }}`-lift en een
-  glazen `bg-white/60 backdrop-blur-xl`-look, in lijn met de bestaande
-  Nav-glassmorphism.
+- **`HeroSelector`** (nu een controlled component, `activeRole`/
+  `onRoleChange` props i.p.v. eigen state): de rol-tabs bovenaan sturen
+  de gedeelde state aan. De donateur-tab behoudt de signature
+  postcode-zoeker met radar-ping; de andere twee linken door naar hun
+  instapscherm.
+- **`Features`** (`components/marketing/Features.tsx`, vervangt de oude
+  statische `RoleSelector`): drie pitch-kaarten met exact op de rol
+  toegespitste copy, plus een visueel mockup-blok dat de rol invult
+  zonder er tekstueel over uit te weiden — een live
+  campagne-dashboard met staafdiagram voor bestuur, een
+  leaderboard+badges-mockup voor leden, en een vertrouwens-rij
+  (chat/privacy/iDEAL) voor donateurs.
+- **`HowItWorks`** en **`CallToAction`**: respectievelijk de 3-stappen-
+  uitleg en de slot-CTA, allebei volledig herschreven per rol (andere
+  stappen, andere iconen, andere CTA-tekst/link).
+- Alle rolwissels animeren met Framer Motion (`AnimatePresence
+  mode="wait"`, fade+slide) — geen abrupte content-sprong.
+- De actieve rol wordt gespiegeld in de URL (`?rol=bestuur`) via
+  `router.replace(..., { scroll: false })`, zodat een rol-specifieke
+  landingspagina deelbaar/bookmarkbaar is. `app/page.tsx` wrapt de
+  container daarom in een `<Suspense>` (vereist door
+  `useSearchParams()` in de App Router).
+- **Navbar** (`Nav.tsx`): de "Voor Besturen"-link scrollt niet langer
+  naar een losse, statische sectie — hij roept `onKiesRol("bestuur")`
+  aan (zet de gedeelde state) én scrollt naar `#features`, zodat de
+  bezoeker meteen de bestuur-specifieke pitch ziet. De "Inloggen"-knop
+  blijft een dropdown met twee opties — "Inloggen als Speler"
+  (`/speler`) en "Inloggen als Penningmeester" (`/admin/login`).
+- **Verwijderd**: de oude statische `RoleSelector.tsx` ("wie ben jij?"
+  3-kaarten-grid) en `ClubPitch.tsx` (donkere bento-grid met
+  `id="voor-besturen"`) zijn volledig vervangen door de rol-bewuste
+  `Features`/`CallToAction` — beide mengden voorheen lid-content
+  (leaderboard, badges) in een sectie die nominaal "voor besturen" was,
+  wat lijnrecht tegen het nieuwe uitgangspunt "geen overbodige
+  informatie van andere rollen" inging. De herbruikbare mockup-visuals
+  (leaderboard, badges) zijn overgezet naar `Features` bij de rol
+  waar ze inhoudelijk thuishoren (lid), niet bestuur.
 - **`/speler`** (`app/speler/page.tsx`): een lichte lijst van actieve
   clubs die doorlinkt naar `/club/[slug]`. Teamleden komen normaal al
   via een clubspecifieke WhatsApp-uitnodiging (campagnebeheer) direct
@@ -55,7 +86,7 @@ expliciet uit elkaar in plaats van één generieke "voor clubs"-link:
 
 ```
 app/
-  page.tsx                        Marketing-landingspagina (Nav/Hero/ActivityTicker/RoleSelector/ImpactStats/PricingPromise/HowItWorks/ClubPitch/WhyBetter/Faq/Footer)
+  page.tsx                        Marketing-landingspagina — LandingPageContainer (rol-bewust: Nav/Hero/ActivityTicker/Features/ImpactStats/PricingPromise/HowItWorks/WhyBetter/CallToAction/Faq/Footer)
   donateren/page.tsx              Functionele donor-flow (postcode + live clubgrid, met ?postcode=)
   clubs/[slug]/page.tsx           Club-detail + ophaalformulier (donor)
   speler/page.tsx                 Generieke club-zoekpagina voor "Inloggen als Speler"
@@ -77,7 +108,7 @@ app/
   api/                            Route handlers (schrijfacties, service-role)
 
 components/
-  marketing/                      Landingspagina-secties (Nav, Hero, ActivityTicker, RoleSelector, HowItWorks, ClubPitch, Faq, Footer)
+  marketing/                      Landingspagina-secties (LandingPageContainer, Nav, HeroSelector, ActivityTicker, Features, HowItWorks, CallToAction, WhyBetter, Faq, Footer)
   ui/                             Generieke UI-bouwstenen (Button, Card, ProgressBar, BottomSheet, ...)
   chat/                           ChatWindow — gedeeld door speler- en donateur-kant van de anonieme chat
   donor/                          Donor-dashboard componenten
@@ -448,16 +479,19 @@ de koptekst — koptekst, subtekst en primaire CTA wisselen per rol via
 een `AnimatePresence`-fade, met een gedeelde `layoutId`-tab-indicator
 die soepel meeschuift. Alleen de donateur-tab toont de postcode-
 zoekbalk (met de radar-ping hierboven); de andere twee tabs linken
-direct door naar hun eigen instapscherm. Dit is bewust een ander patroon
-dan de statische 3-kaarten-`RoleSelector` verderop op de pagina — die
-blijft ernaast bestaan als aparte "wie ben jij"-sectie.
+direct door naar hun eigen instapscherm. Sinds de "Global Role State"-
+architectuur (zie "Rolscheiding op de landingspagina" hierboven) is dit
+geen losstaande component meer met eigen state — de actieve rol komt
+als prop binnen vanuit `LandingPageContainer` en stuurt bij een
+tabklik diezelfde gedeelde state aan, zodat `Features`, `HowItWorks` en
+`CallToAction` verderop op de pagina meteen meewisselen.
 
 ### Showcase- en proof-secties (conversie/geloofwaardigheid)
 
-Naast Hero/RoleSelector/HowItWorks bevat de landingspagina drie secties
-die puur bedoeld zijn om vertrouwen te wekken vóórdat iemand een account
-aanmaakt of zijn adres deelt — alle inhoud hieronder is **dummy-data**,
-niet uit Supabase opgehaald:
+Naast Hero/Features/HowItWorks/CallToAction bevat de landingspagina een
+paar rol-neutrale secties die puur bedoeld zijn om vertrouwen te wekken
+vóórdat iemand een account aanmaakt of zijn adres deelt — alle inhoud
+hieronder is **dummy-data**, niet uit Supabase opgehaald:
 
 - **`ActivityTicker`** (`components/marketing/ActivityTicker.tsx`,
   direct onder de Hero): een horizontaal scrollend "live activiteit"-
@@ -468,21 +502,13 @@ niet uit Supabase opgehaald:
   items staat. Respecteert `prefers-reduced-motion` (animatie helemaal
   uit i.p.v. vertraagd, want een oneindige loop kán niet "verkort"
   worden).
-- **`ClubPitch`** (bento-grid, zie hierboven bij "Clubbeheer") toont nu
-  drie rijke mockups i.p.v. platte tekst: een spelers-leaderboard
-  (avatars, naam, week-streak, punten), een penningmeester-dashboard
-  (mini-thermometer + de anomaly-verificatie-flow als visuele stappen:
-  🚩 bedrag → 📸 foto bekijken → ✅ goedkeuren) en een badges-grid met
-  ontgrendelde (kleur/goud) naast vergrendelde (grijs, slotje, "???")
-  achievements — een marketing-spiegel van de échte Trofeeënkast op
-  `/club/[slug]/profiel`.
 - **`Faq`** (`components/marketing/Faq.tsx`, vlak boven de `Footer`):
   een accordion met veelgestelde vragen van zowel donateurs
   (thuisblijven, AVG) als besturen (kosten, betrouwbaarheid). Zelfgebouwd
   met `AnimatePresence` + een `height: "auto"`-animatie, hetzelfde
   patroon als het mobiele hamburgermenu in `Nav.tsx`.
 - **`ImpactStats`** (`components/marketing/ImpactStats.tsx`, "De harde
-  cijfers", direct onder `RoleSelector`): een `bg-slate-900`-sectie die
+  cijfers", direct onder `Features`): een `bg-slate-900`-sectie die
   bewust breekt met de rest van de lichte pagina — drie statistieken
   over hoeveel statiegeld er jaarlijks ongeclaimd blijft, die van 0
   optellen naar hun eindwaarde zodra de sectie in beeld scrolt. De
@@ -499,7 +525,7 @@ niet uit Supabase opgehaald:
 - **`PricingPromise`** (`components/marketing/PricingPromise.tsx`, "Een
   eerlijk verdienmodel", direct onder `ImpactStats`): een lichte,
   glasachtige kaart (`bg-white/70 backdrop-blur-xl`, zelfde recept als de
-  `RoleSelector`-kaarten) die welbewust weer terugkeert naar de lichte
+  `Features`-kaarten) die welbewust weer terugkeert naar de lichte
   pagina na de donkere `ImpactStats`-sectie ervoor. Bewust **geen taart-/
   donutgrafiek** voor de 95/5-verdeling — twee segmenten lezen daar zwak
   in, en de 5% is inhoudelijk ook geen gelijkwaardige tweede categorie
@@ -511,8 +537,8 @@ niet uit Supabase opgehaald:
   waarde van beide altijd als tekst leesbaar, ook zonder op kleur te
   hoeven vertrouwen.
 - **`WhyBetter`** (`components/marketing/WhyBetter.tsx`, "Meer
-  opbrengst. Minder moeite. 100% Groen.", ná de bento-grid-showcase
-  `ClubPitch` en vóór de `Faq`): het directe vergelijkingsargument
+  opbrengst. Minder moeite. 100% Groen.", rol-neutraal geplaatst tussen
+  `HowItWorks` en `CallToAction`): het directe vergelijkingsargument
   t.o.v. traditionele fondsenwerving (loten, koeken verkopen) — vier
   glasachtige kaarten in een 2×2-grid (`bg-white/70 backdrop-blur-xl`,
   gestapeld op mobiel), elk met een eigen icoon-kleur (amber/blauw/
@@ -524,7 +550,7 @@ niet uit Supabase opgehaald:
   een lichte scheiding zichtbaar blijft tussen deze sectie en de
   `Faq` erna, ook al zijn beide "licht".
 - **`Footer`** (`components/marketing/Footer.tsx`, `bg-slate-900`,
-  zelfde donkere toon als `ClubPitch`/`WhyBetter`): 4 kolommen
+  zelfde donkere toon als `CallToAction`/`ImpactStats`): 4 kolommen
   (1 op mobiel, 2 op tablet, 4 op desktop) — pitch + copyright,
   product-links (`#hoe-het-werkt`, `/donateren` voor de Glas-naar-Kas-
   service, `#prijzen` — dat laatste een nieuw anker op `PricingPromise`),
