@@ -9,8 +9,10 @@ import { berekenPlatformFee, PLATFORM_FEE_PERCENTAGE } from "@/lib/utils";
  * van de vorige factuurperiode (of sinds het ontstaan van de club, als
  * dit de eerste factuur is). Afgekeurde scans en openstaande
  * vlaggetjes tellen dus nooit mee. `bron = 'glas_naar_kas'`
- * ("Glas-naar-Kas") telt hier bewust wél mee — die service valt onder
- * dezelfde 5%-regel als een gewone statiegeld-scan.
+ * ("Glas-naar-Kas") telt hier bewust NIET meer mee (sinds migratie
+ * 0015) — die donaties lopen via Stripe Checkout, waar de 5%-fee al
+ * automatisch is ingehouden op het moment van betalen. Meetellen zou
+ * de club dubbel laten betalen.
  */
 export async function POST(_request: NextRequest, { params }: { params: Promise<{ slug: string }> }) {
   const { slug } = await params;
@@ -62,6 +64,7 @@ export async function POST(_request: NextRequest, { params }: { params: Promise<
     .from("bonnetjes")
     .select("bedrag_euro, teams!inner(club_id)")
     .eq("status", "goedgekeurd")
+    .eq("bron", "scan")
     .eq("teams.club_id", club.id)
     .gt("geverifieerd_op", periodeStart)
     .lte("geverifieerd_op", periodeEind);

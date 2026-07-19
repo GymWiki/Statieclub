@@ -1,66 +1,81 @@
 "use client";
 
 import { useState } from "react";
+import { useSearchParams } from "next/navigation";
 import { motion } from "framer-motion";
-import { AlertTriangle, CreditCard, Loader2, Receipt, TrendingUp, Wallet } from "lucide-react";
+import { AlertTriangle, ExternalLink, Loader2, ShieldCheck, TrendingUp, Wallet } from "lucide-react";
 import { Card } from "@/components/ui/Card";
 import { Button } from "@/components/ui/Button";
-import { StatusBadge } from "@/components/ui/Badge";
 import { AnimatedNumber } from "@/components/ui/AnimatedNumber";
-import { ROLLOVER_DREMPEL_EURO } from "@/lib/mollieConstants";
 import { formatEuro, PLATFORM_FEE_PERCENTAGE } from "@/lib/utils";
-import type { Club, PlatformIncasso } from "@/lib/types";
-
-const MAAND_NAMEN = [
-  "januari", "februari", "maart", "april", "mei", "juni",
-  "juli", "augustus", "september", "oktober", "november", "december",
-];
-
-function formatMaandJaar(maand: number, jaar: number): string {
-  return `${MAAND_NAMEN[maand - 1] ?? maand} ${jaar}`;
-}
+import type { Club } from "@/lib/types";
 
 export function FacturatieOverzicht({
   club,
-  initialDezeMaandOpgehaald,
-  initialIncassos,
+  totaalOpgehaald,
 }: {
   club: Club;
-  initialDezeMaandOpgehaald: number;
-  initialIncassos: PlatformIncasso[];
+  totaalOpgehaald: number;
 }) {
+  const searchParams = useSearchParams();
+  const zojuistTeruggekeerd = searchParams.get("stripe_return") === "true";
+
   const [bezig, setBezig] = useState(false);
   const [foutmelding, setFoutmelding] = useState<string | null>(null);
 
-  const heeftMandaat = !!club.mollie_mandate_id;
-  const wordtGeincasseerd = club.openstaand_saldo_fee >= ROLLOVER_DREMPEL_EURO;
+  const gekoppeld = !!club.stripe_account_id && club.onboarding_complete;
+  const afgedragenFee = Math.round(totaalOpgehaald * (PLATFORM_FEE_PERCENTAGE / 100) * 100) / 100;
 
-  async function activeerAutomatischeIncasso() {
+  async function koppelStripe() {
     setBezig(true);
     setFoutmelding(null);
 
     try {
-      const res = await fetch("/api/mollie/create-mandate", {
+      const res = await fetch("/api/stripe/create-connect-account", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ club_id: club.id }),
       });
       const json = await res.json();
 
-      if (!res.ok || !json.checkoutUrl) {
-        setFoutmelding(json.error ?? "Kon de verificatiebetaling niet starten.");
+      if (!res.ok || !json.accountLinkUrl) {
+        setFoutmelding(json.error ?? "Kon de Stripe-koppeling niet starten.");
         setBezig(false);
         return;
       }
 
-      window.location.href = json.checkoutUrl;
+      window.location.href = json.accountLinkUrl;
     } catch {
-      setFoutmelding("Kon geen verbinding maken met Mollie. Probeer het later opnieuw.");
+      setFoutmelding("Kon geen verbinding maken met Stripe. Probeer het later opnieuw.");
       setBezig(false);
     }
   }
 
-  if (!heeftMandaat) {
+  async function openStripeDashboard() {
+    setBezig(true);
+    setFoutmelding(null);
+
+    try {
+      const res = await fetch("/api/stripe/create-dashboard-link", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ club_id: club.id }),
+      });
+      const json = await res.json();
+
+      if (!res.ok || !json.dashboardUrl) {
+        setFoutmelding(json.error ?? "Kon geen Stripe-dashboard-link aanmaken.");
+        setBezig(false);
+        return;
+      }
+
+      window.open(json.dashboardUrl, "_blank", "noopener,noreferrer");
+    } finally {
+      setBezig(false);
+    }
+  }
+
+  if (!gekoppeld) {
     return (
       <Card className="p-6">
         <div className="flex items-start gap-3">
@@ -68,22 +83,28 @@ export function FacturatieOverzicht({
             <AlertTriangle className="h-5 w-5" />
           </div>
           <div className="flex-1">
-            <h2 className="font-semibold text-gray-900">Automatische incasso nog niet actief</h2>
-            <p className="mt-1 text-sm text-gray-600">
-              Statieclub rekent {PLATFORM_FEE_PERCENTAGE}% platformfee over het opgehaalde statiegeld. Om
-              micro-betalingen te voorkomen, wordt deze fee via SEPA Automatische Incasso maandelijks geïnd —
-              maar pas zodra het openstaande bedrag minimaal {formatEuro(ROLLOVER_DREMPEL_EURO)} is. Activeer dit
-              hieronder met een eenmalige verificatiebetaling van {formatEuro(0.01)} via iDeal.
-            </p>
+            <h2 className="font-semibold text-gray-900">Nog niet gekoppeld aan Stripe</h2>
+            {zojuistTeruggekeerd && club.stripe_account_id ? (
+              <p className="mt-1 text-sm text-amber-700">
+                Je bent teruggekeerd van Stripe — we wachten nog op de laatste bevestiging dat je account
+                helemaal klaar is. Dit duurt meestal maar even; ververs de pagina zo dadelijk.
+              </p>
+            ) : (
+              <p className="mt-1 text-sm text-gray-600">
+                Koppel de club bankrekening via Stripe om donaties te ontvangen. Statieclub rekent
+                automatisch {PLATFORM_FEE_PERCENTAGE}% platformfee per donatie — de rest gaat rechtstreeks
+                naar de clubrekening, zonder tussenkomst.
+              </p>
+            )}
             {foutmelding && <p className="mt-2 text-sm font-medium text-red-600">{foutmelding}</p>}
-            <Button className="mt-4" onClick={activeerAutomatischeIncasso} disabled={bezig}>
+            <Button className="mt-4" onClick={koppelStripe} disabled={bezig}>
               {bezig ? (
                 <>
                   <Loader2 className="h-4 w-4 animate-spin" /> Bezig met starten…
                 </>
               ) : (
                 <>
-                  <CreditCard className="h-4 w-4" /> Activeer Automatische Incasso (€0,01 verificatie via iDeal)
+                  <ShieldCheck className="h-4 w-4" /> Koppel de club bankrekening via Stripe
                 </>
               )}
             </Button>
@@ -95,87 +116,44 @@ export function FacturatieOverzicht({
 
   return (
     <div className="space-y-4">
-      <div className="grid grid-cols-1 gap-4 sm:grid-cols-3">
+      <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
         <motion.div initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.3 }}>
           <Card className="p-5">
             <p className="flex items-center gap-1.5 text-sm text-gray-500">
-              <Wallet className="h-4 w-4" /> Deze maand opgehaald
+              <Wallet className="h-4 w-4" /> Totaal binnengehaald via Stripe
             </p>
             <p className="mt-1 text-3xl font-extrabold text-gray-900">
-              <AnimatedNumber value={initialDezeMaandOpgehaald} format={formatEuro} />
+              <AnimatedNumber value={totaalOpgehaald} format={formatEuro} />
             </p>
-            <p className="mt-1 text-xs text-gray-400">Statiegeld + Glas-naar-Kas, goedgekeurd</p>
+            <p className="mt-1 text-xs text-gray-400">Glas-naar-Kas-donaties, sinds koppeling</p>
           </Card>
         </motion.div>
 
         <motion.div initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.3, delay: 0.05 }}>
           <Card className="p-5">
             <p className="flex items-center gap-1.5 text-sm text-gray-500">
-              <TrendingUp className="h-4 w-4" /> Huidige platform fee ({PLATFORM_FEE_PERCENTAGE}%)
+              <TrendingUp className="h-4 w-4" /> Afgedragen platformkosten ({PLATFORM_FEE_PERCENTAGE}%)
             </p>
             <p className="mt-1 text-3xl font-extrabold text-brand-700">
-              <AnimatedNumber value={club.openstaand_saldo_fee} format={formatEuro} />
+              <AnimatedNumber value={afgedragenFee} format={formatEuro} />
             </p>
-            <span
-              className={
-                "mt-2 inline-flex items-center rounded-full border px-2.5 py-1 text-xs font-semibold " +
-                (wordtGeincasseerd
-                  ? "border-status-open/30 bg-status-open/10 text-status-open"
-                  : "border-amber-300 bg-amber-100 text-amber-700")
-              }
-            >
-              {wordtGeincasseerd
-                ? "Wordt geïncasseerd op de 1e"
-                : `Schuift door naar volgende maand (minimum ${formatEuro(ROLLOVER_DREMPEL_EURO)})`}
-            </span>
-          </Card>
-        </motion.div>
-
-        <motion.div initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.3, delay: 0.1 }}>
-          <Card className="p-5">
-            <p className="flex items-center gap-1.5 text-sm text-gray-500">
-              <Receipt className="h-4 w-4" /> Facturen geïncasseerd
-            </p>
-            <p className="mt-1 text-3xl font-extrabold text-gray-900">
-              <AnimatedNumber value={initialIncassos.filter((i) => i.status === "paid").length} />
-            </p>
-            <p className="mt-1 text-xs text-gray-400">Automatische SEPA-incasso via Mollie</p>
+            <p className="mt-1 text-xs text-gray-400">Automatisch ingehouden per donatie</p>
           </Card>
         </motion.div>
       </div>
 
-      <Card className="overflow-hidden">
-        <div className="border-b border-gray-100 px-4 py-3">
-          <h2 className="font-semibold text-gray-900">Factuurhistorie</h2>
-        </div>
-        {initialIncassos.length === 0 ? (
-          <p className="px-4 py-6 text-sm text-gray-400">
-            Nog geen afschrijvingen — zodra de fee de rollover-drempel haalt, verschijnt hier de eerste incasso.
+      <Card className="flex items-center justify-between gap-4 p-5">
+        <div>
+          <h2 className="font-semibold text-gray-900">Uitbetalingen</h2>
+          <p className="mt-1 text-sm text-gray-500">
+            Bekijk je saldo, uitbetalingsschema en transactiegeschiedenis in het Stripe Express-dashboard.
           </p>
-        ) : (
-          <table className="w-full text-sm">
-            <thead className="bg-gray-50 text-left text-xs uppercase tracking-wide text-gray-500">
-              <tr>
-                <th className="px-4 py-2.5">Periode</th>
-                <th className="px-4 py-2.5 text-right">Bedrag</th>
-                <th className="px-4 py-2.5 text-right">Status</th>
-              </tr>
-            </thead>
-            <tbody className="divide-y divide-gray-100">
-              {initialIncassos.map((incasso) => (
-                <tr key={incasso.id}>
-                  <td className="px-4 py-3 font-medium text-gray-900">
-                    {formatMaandJaar(incasso.maand, incasso.jaar)}
-                  </td>
-                  <td className="px-4 py-3 text-right text-gray-600">{formatEuro(incasso.bedrag)}</td>
-                  <td className="px-4 py-3 text-right">
-                    <StatusBadge status={incasso.status} />
-                  </td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        )}
+          {foutmelding && <p className="mt-2 text-sm font-medium text-red-600">{foutmelding}</p>}
+        </div>
+        <Button variant="secondary" onClick={openStripeDashboard} disabled={bezig} className="shrink-0">
+          {bezig ? <Loader2 className="h-4 w-4 animate-spin" /> : <ExternalLink className="h-4 w-4" />}
+          Bekijk uitbetalingen in Stripe
+        </Button>
       </Card>
     </div>
   );

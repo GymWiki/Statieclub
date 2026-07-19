@@ -31,14 +31,17 @@ export default async function ClubDetailPage({ params }: { params: Promise<{ slu
   const actieveDoelen = (doelen as Doel[]) ?? [];
 
   // "Glas-naar-Kas" alleen aanbieden als er minstens één team is dat
-  // de service heeft aangezet — anders belandt een donatieverzoek
-  // nooit bij een team dat het kan claimen.
+  // de service heeft aangezet (anders belandt een donatieverzoek nooit
+  // bij een team dat het kan claimen) ÉN de club Stripe-onboarding
+  // heeft afgerond (anders kan er geen echte betaling aan deze club
+  // worden doorgestort).
   const { count: glasTeamsAantal } = await supabase
     .from("teams")
     .select("id", { count: "exact", head: true })
     .eq("club_id", club.id)
     .eq("glas_service_actief", true);
-  const glasServiceBeschikbaar = (glasTeamsAantal ?? 0) > 0;
+  const glasServiceBeschikbaar =
+    (glasTeamsAantal ?? 0) > 0 && !!club.stripe_account_id && club.onboarding_complete;
 
   return (
     <div className="mx-auto max-w-lg px-4 py-8">

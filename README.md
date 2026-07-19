@@ -227,62 +227,78 @@ bewaard profiel in de browser (geen open "zoek op e-mailadres"-endpoint,
 om het risico van het lekken van namen/adressen via e-mail-enumeratie
 uit te sluiten).
 
-### Automatische incasso via Mollie: rollover-facturatie (`/admin/[slug]/facturatie`)
+### Stripe Connect: échte donatiebetalingen (`/admin/[slug]/facturatie`)
 
-Naast de handmatige conceptfactuur hierboven staat een **volledig
-geautomatiseerd** tweede spoor, gebouwd op de officiële
-`@mollie/api-client`-SDK (migratie `0014_mollie_facturatie.sql`). De twee
-sporen bestaan bewust naast elkaar — zie de migratie zelf voor de
-onderbouwing waarom er niet in de bestaande `facturen`-tabel is
-geknutseld.
+Statieclub gebruikt Stripe Connect (**destination charges**) als
+betaalmotor voor online donaties — momenteel uitsluitend de
+"Glas-naar-Kas"-donatie (zie verderop), het enige geldbedrag in deze
+app dat daadwerkelijk als betaling door het platform stroomt. Dit
+verving in migratie `0015_stripe_connect.sql` een eerdere, volledig
+uitgewerkte Mollie SEPA-incasso-architectuur — zie de migratie zelf
+voor de volledige onderbouwing van die knip.
 
-- **Real-time fee-opbouw.** `apply_bonnetje_insert`/
-  `apply_bonnetje_status_change` (dezelfde triggers als hierboven)
-  schrijven bij élk goedgekeurd bonnetje ook 5% van `bedrag_euro` bij op
-  `clubs.openstaand_saldo_fee` — voor beide bronnen (`scan` én
-  `glas_naar_kas`; die service kent hier dus geen uitzondering). Wordt
-  een bonnetje later afgekeurd, dan gaat het bedrag er weer af.
-- **Onboarding: SEPA-mandaat via een €0,01-verificatie.**
-  `POST /api/mollie/create-mandate` maakt een Mollie-klant aan voor de
-  club en start een eenmalige iDeal-betaling van €0,01 met
-  `sequenceType: 'first'`. Zodra die betaling lukt, zet Mollie er
-  automatisch een geldig SEPA-mandaat bij; `POST /api/mollie/webhook`
-  haalt dat mandaat op (`payment.getMandate()`) en zet
-  `clubs.mollie_mandate_id`. Zolang dat veld leeg is, toont
-  `/admin/[slug]/facturatie` alleen de activatieknop.
-- **Mollie-webhook = onbetrouwbare ping.** De webhook-body bevat
-  uitsluitend een payment-`id`, nooit een status — de route vertrouwt
-  dus nooit de request-body zelf, maar haalt de betaling altijd zelf op
-  via `payments.get(id)` met de eigen API-key voordat er iets in
-  Supabase wordt bijgewerkt. Geeft altijd een 2xx terug (ook bij een
-  interne fout) zodat Mollie niet oneindig blijft doorproberen op een
-  permanente fout; fouten worden wél gelogd.
-- **Maandelijkse "rollover"-cron** (`GET /api/cron/monthly-billing`,
-  beveiligd met `Authorization: Bearer <CRON_SECRET>` — Vercel Cron Jobs
-  sturen dit automatisch mee, vandaar `GET` en niet `POST`). Voor elke
-  actieve club: staat `openstaand_saldo_fee` op minimaal €2,50
-  (`ROLLOVER_DREMPEL_EURO` in `lib/mollieConstants.ts`), dan komt er een
-  rij in `platform_incassos`, wordt er een SEPA-incasso
-  (`sequenceType: 'recurring'`) tegen het bestaande mandaat getriggerd
-  en gaat `openstaand_saldo_fee` terug naar 0. Zit een club daaronder,
-  dan gebeurt er niets — het bedrag schuift vanzelf door naar volgende
-  maand. De `unique (club_id, maand, jaar)`-constraint op
-  `platform_incassos` voorkomt dubbel incasseren als de cron per ongeluk
-  twee keer draait. Elke club krijgt hierna een maandrapport via
-  `lib/email.ts`.
-- **`lib/email.ts` is bewust gesimuleerd** — er is geen
-  transactionele e-mailprovider (Resend/Postmark/…) gekoppeld; de
-  "verzending" wordt gestructureerd gelogd. Vervang de body van
-  `verstuurMaandrapport()` door een echte provider-call om dit later
-  "echt" te maken.
-- **`lib/mollieConstants.ts` staat los van `lib/mollie.ts`**: dat laatste
-  importeert de volledige Mollie Node.js-SDK, wat niet in een
-  client-bundel terecht mag komen. `FacturatieOverzicht.tsx` (het
-  dashboard) importeert daarom alleen de constanten, nooit `lib/mollie.ts`
-  zelf.
-- **Nieuwe env-vars** (zie `.env.example`): `MOLLIE_API_KEY`,
-  `NEXT_PUBLIC_SITE_URL` (voor Mollie's redirect-/webhook-URL) en
-  `CRON_SECRET`.
+> **Bewuste beperking.** Fysiek opgehaald statiegeld (`bron = 'scan'`)
+> gaat nooit door het platform — daar valt dus nooit automatisch een
+> fee op in te houden. Voor die stroom blijft de **handmatige**
+> conceptfactuur (hierboven, `PlatformFactuur.tsx` /
+> `POST /api/clubs/[slug]/facturen`) de manier om de 5%-fee te innen —
+> die rekent gewoon over alle goedgekeurde bonnetjes, ongeacht bron, en
+> is door deze migratie niet aangeraakt. Alleen de vroegere *automatische*
+> SEPA-incasso op die stroom is vervallen.
+
+- **Onboarding: Stripe Express-account.**
+  `POST /api/stripe/create-connect-account` maakt (indien nog niet
+  aanwezig) een Express-account aan voor de club
+  (`clubs.stripe_account_id`) en retourneert een Account Link waarmee
+  de penningmeester de Stripe-onboarding doorloopt (bedrijfsgegevens,
+  bankrekening, identiteitsverificatie). `clubs.onboarding_complete`
+  wordt hier bewust NIET gezet — dat gebeurt pas server-side zodra
+  Stripe het zelf bevestigt.
+- **`account.updated`-webhook = bron van waarheid voor onboarding-status.**
+  `POST /api/stripe/webhook` zet `onboarding_complete` op true zodra
+  een account tegelijk `details_submitted`, `charges_enabled` én
+  `payouts_enabled` heeft. Zolang dat niet zo is, toont
+  `/admin/[slug]/facturatie` de "nog niet gekoppeld"-waarschuwing en
+  blijft de "Glas-naar-Kas"-optie verborgen op de donateurspagina
+  (`app/clubs/[slug]/page.tsx`).
+- **Stripe-webhooks zijn ondertekend en dus wél te vertrouwen** —
+  anders dan bij Mollie's "onbetrouwbare ping" bevat de Stripe-payload
+  de volledige event-data. Na verificatie via
+  `stripe.webhooks.constructEventAsync(...)` met `STRIPE_WEBHOOK_SECRET`
+  wordt de payload zelf gebruikt, geen aparte re-fetch nodig. Vereist
+  de rauwe request-body (`request.text()`, niet `request.json()`) — de
+  handtekening is berekend over de exacte bytes.
+- **`POST /api/stripe/create-checkout-session`**: bouwt een Checkout
+  Session met iDeal ingeschakeld en
+  `payment_intent_data.transfer_data.destination` naar
+  `clubs.stripe_account_id`, met `application_fee_amount` op 5% van het
+  bedrag (`PLATFORM_FEE_PERCENTAGE` in `lib/utils.ts`) — een
+  "destination charge": Stripe stort het restbedrag automatisch door
+  naar de club, de fee blijft op de platformrekening. Maakt **bewust
+  nog geen** `ophaalverzoeken`-rij aan — dat gebeurt pas in het
+  webhook, ná bevestigde betaling, zodat een afgebroken/nooit-voltooide
+  betaling nooit een rij oplevert die een team zou kunnen claimen.
+- **`checkout.session.completed`** in de webhook maakt daarna alsnog de
+  donateur (upsert op e-mail) en het `ophaalverzoeken`-record aan
+  (`type: 'glasbak'`, `vooraf_betaald: true`) — identiek aan wat
+  `POST /api/ophaalverzoeken` altijd al deed, nu alleen getriggerd door
+  een echte betaling in plaats van een gesimuleerde stap. De rij wordt
+  gekoppeld via `stripe_checkout_session_id` (uniek), wat zowel
+  dubbele verwerking voorkomt (Stripe kan events opnieuw afleveren) als
+  de lookup vanaf de "bedankt"-pagina mogelijk maakt.
+- **`/donateren/bedankt`**: de `success_url` waar de donateur na
+  betaling landt. Pollt kort `GET
+  /api/stripe/checkout-session-status?session_id=...` totdat het
+  webhook-event is verwerkt en het ophaalverzoek bestaat, en stuurt dan
+  door naar de bestaande "magic link"-statuspagina
+  (`/status/[ophaalverzoekId]`) — geen aparte bevestigingspagina nodig.
+- **"Bekijk uitbetalingen in Stripe"** (`POST
+  /api/stripe/create-dashboard-link`) genereert een kortlevende
+  Express-dashboard-login-link on demand — die kan niet als vaste URL
+  in de UI staan.
+- **Nieuwe env-vars** (zie `.env.example`): `STRIPE_SECRET_KEY`,
+  `STRIPE_WEBHOOK_SECRET`, `NEXT_PUBLIC_SITE_URL` (voor Stripe's
+  success-/cancel-/return-URL's).
 
 ## Marketing-landingspagina (`app/page.tsx`)
 
@@ -534,9 +550,10 @@ een UI-conventie:
 Naast de gratis statiegeld-ophaalflow kan een buurtbewoner een vaste
 donatie (€5/€10/€15) vooraf betalen om oud papier of zware
 glasbak-flessen door een team te laten weggooien — geen OCR-scan, geen
-penningmeester-verificatie. De donatie valt onder dezelfde 5%-
-platformfee als een gewone statiegeld-scan (zie hieronder) — geen
-uitzondering, ondanks dat er geen bonnetje aan te pas komt.
+penningmeester-verificatie. De betaling loopt via een échte Stripe
+Checkout-sessie (zie de Stripe Connect-sectie hierboven); de 5%-fee
+wordt daarbij automatisch ingehouden door Stripe zelf, niet via de
+handmatige conceptfactuur.
 
 - **Schema** (migratie 0013): `ophaalverzoeken.type`
   (`'statiegeld' | 'glasbak'`), `.vooraf_betaald` en `.donatie_bedrag`.
@@ -551,12 +568,13 @@ uitzondering, ondanks dat er geen bonnetje aan te pas komt.
   keuzescherm vóór het bestaande `OphaalForm` — "Statiegeld Ophalen"
   vs. "Naar de Glas-naar-Kas Service", waarbij die tweede knop alleen
   verschijnt als minstens één team van de club `glas_service_actief`
-  heeft staan (anders belandt een donatieverzoek nooit bij een team dat
-  het kan claimen). Bij die keuze doorloopt `GlasNaarKasForm.tsx`:
-  donatiegegevens → bedrag kiezen (€5/€10/€15) → een expliciet als
-  **"Gesimuleerd betaalscherm (demo)"** gelabelde mock-iDeal/Tikkie-
-  stap (geen echte betaalprovider) → pas ná die "betaling" wordt `POST
-  /api/ophaalverzoeken` met `type: 'glasbak'` aangeroepen.
+  heeft staan ÉN de club Stripe-onboarding heeft afgerond (anders is er
+  geen bestemming om de betaling naar door te storten). Bij die keuze
+  doorloopt `GlasNaarKasForm.tsx`: donatiegegevens → bedrag kiezen
+  (€5/€10/€15) → volledige redirect naar Stripe's hosted iDeal-
+  betaalpagina. De `ophaalverzoeken`-rij zelf (met `type: 'glasbak'`)
+  ontstaat pas server-side in `/api/stripe/webhook`, ná bevestigde
+  betaling — nooit vooraf en nooit client-side.
 - **Speler-prikbord**: `type: 'glasbak'`-ritten krijgen een opvallende
   paars/gouden "bounty"-styling in zowel `PrikbordLijst.tsx` (gradient-
   kaart, 🍾-label, "💰 €X Direct voor de clubkas") als `PrikbordKaart.tsx`
@@ -572,11 +590,12 @@ uitzondering, ondanks dat er geen bonnetje aan te pas komt.
   /api/ophaalverzoeken/[id]/claim` filteren/weigeren `glasbak`-ritten
   voor een team zonder `glas_service_actief` — client-side (UX) én
   server-side (afgedwongen), net als bij de doel-teamscoping.
-- **Facturatie**: `bron = 'glas_naar_kas'` telt gewoon mee in de
-  5%-platformfee-berekening (`/api/clubs/[slug]/facturen` en het
-  admin-dashboard preview-bedrag) — er is bewust geen uitzondering
-  gemaakt voor deze service, dat zou het verdienmodel inconsistent
-  maken.
+- **Facturatie**: `bron = 'glas_naar_kas'` telt niet meer mee in de
+  handmatige conceptfactuur-berekening (`/api/clubs/[slug]/facturen`)
+  — de 5%-fee op deze donaties is al automatisch door Stripe
+  ingehouden op het moment van betalen, dus die zou anders dubbel
+  worden gerekend. Alleen `bron = 'scan'` (fysiek statiegeld, dat nooit
+  door het platform stroomt) loopt nog via die handmatige factuur.
 - **Admin** (`components/admin/TeamsBeheer.tsx` +
   `components/ui/Toggle.tsx`): een herbruikbare toggle-switch, één per
   team, met `PATCH /api/teams/[id]`.

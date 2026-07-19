@@ -2,7 +2,6 @@ import { ShieldOff } from "lucide-react";
 import { createServiceRoleClient } from "@/lib/supabase/server";
 import { vereisClubToegang } from "@/lib/adminAuth";
 import { FacturatieOverzicht } from "@/components/admin/FacturatieOverzicht";
-import type { PlatformIncasso } from "@/lib/types";
 
 export default async function AdminFacturatiePage({ params }: { params: Promise<{ slug: string }> }) {
   const { slug } = await params;
@@ -19,38 +18,23 @@ export default async function AdminFacturatiePage({ params }: { params: Promise<
 
   const service = createServiceRoleClient();
 
-  const nu = new Date();
-  const maandStart = new Date(Date.UTC(nu.getUTCFullYear(), nu.getUTCMonth(), 1)).toISOString();
-  const maandEind = new Date(Date.UTC(nu.getUTCFullYear(), nu.getUTCMonth() + 1, 1)).toISOString();
-
   const { data: teams } = await service.from("teams").select("id").eq("club_id", club.id);
   const teamIds = (teams ?? []).map((team) => team.id as string);
 
-  let dezeMaandOpgehaald = 0;
+  // Alleen 'glas_naar_kas'-bonnetjes zijn ooit als échte Stripe-betaling
+  // binnengekomen — statiegeld-scans stromen nooit door het platform,
+  // dus die tellen hier bewust niet mee (zie migratie 0015).
+  let totaalOpgehaald = 0;
   if (teamIds.length > 0) {
     const { data: bonnetjes } = await service
       .from("bonnetjes")
       .select("bedrag_euro")
       .in("team_id", teamIds)
       .eq("status", "goedgekeurd")
-      .gte("geverifieerd_op", maandStart)
-      .lt("geverifieerd_op", maandEind);
+      .eq("bron", "glas_naar_kas");
 
-    dezeMaandOpgehaald = (bonnetjes ?? []).reduce((som, b) => som + Number(b.bedrag_euro), 0);
+    totaalOpgehaald = (bonnetjes ?? []).reduce((som, b) => som + Number(b.bedrag_euro), 0);
   }
 
-  const { data: incassos } = await service
-    .from("platform_incassos")
-    .select("*")
-    .eq("club_id", club.id)
-    .order("jaar", { ascending: false })
-    .order("maand", { ascending: false });
-
-  return (
-    <FacturatieOverzicht
-      club={club}
-      initialDezeMaandOpgehaald={dezeMaandOpgehaald}
-      initialIncassos={(incassos as PlatformIncasso[]) ?? []}
-    />
-  );
+  return <FacturatieOverzicht club={club} totaalOpgehaald={totaalOpgehaald} />;
 }

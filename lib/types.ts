@@ -19,8 +19,6 @@ export type BonnetjeBron = "scan" | "glas_naar_kas";
  */
 export type BonnetjeStatus = "in_afwachting_controle" | "goedgekeurd" | "afgekeurd";
 export type FactuurStatus = "concept" | "verzonden" | "betaald";
-/** Status van een automatische SEPA-incasso via Mollie (migratie 0014) — apart van FactuurStatus (de handmatige conceptfactuur-flow). */
-export type PlatformIncassoStatus = "pending" | "paid" | "failed";
 
 export interface Club {
   id: string;
@@ -30,12 +28,10 @@ export interface Club {
   postcode: string;
   regio: string;
   is_actief: boolean;
-  /** Aanwezig zodra er ooit een Mollie-klant voor deze club is aangemaakt (migratie 0014). */
-  mollie_customer_id: string | null;
-  /** Aanwezig zodra de club een geldig SEPA-machtiging heeft — bepaalt of automatische incasso mogelijk is. */
-  mollie_mandate_id: string | null;
-  /** 5%-platformfee, real-time opgebouwd bij elk goedgekeurd bonnetje; geïnd door de maandelijkse cron zodra dit >= €2,50 staat. */
-  openstaand_saldo_fee: number;
+  /** Stripe Express-account-id (acct_...) van deze club, aangemaakt via POST /api/stripe/create-connect-account (migratie 0015). */
+  stripe_account_id: string | null;
+  /** True zodra Stripe (via het account.updated-webhook) bevestigt dat de club charges_enabled + payouts_enabled + details_submitted heeft. */
+  onboarding_complete: boolean;
   created_at: string;
   updated_at: string;
 }
@@ -104,10 +100,12 @@ export interface Ophaalverzoek {
   geclaimd_door_speler_id: string | null;
   status: OphaalverzoekStatus;
   type: OphaalverzoekType;
-  /** True zodra de donatie vooraf (mock iDeal/Tikkie) is afgerekend — alleen bij type 'glasbak'. */
+  /** True zodra de donatie via Stripe Checkout is afgerekend — alleen bij type 'glasbak'. De rij wordt pas aangemaakt ná betaling, dus dit staat bij aanmaak altijd al op true. */
   vooraf_betaald: boolean;
   /** Vast donatiebedrag bij type 'glasbak' (€5/€10/€15); null bij 'statiegeld'. */
   donatie_bedrag: number | null;
+  /** Stripe Checkout Session-id die deze 'glasbak'-donatie heeft betaald (migratie 0015) — null bij 'statiegeld'. Dient voor webhook-idempotentie en de lookup vanaf de "bedankt"-pagina. */
+  stripe_checkout_session_id: string | null;
   aantal_geschat: number;
   opmerking: string | null;
   aangemaakt_op: string;
@@ -268,24 +266,6 @@ export interface Factuur {
   aangemaakt_op: string;
 }
 
-/**
- * Automatische SEPA-incasso via Mollie (migratie 0014) — één rij per
- * club per maand waarin de rollover-drempel (€2,50) is gehaald en er
- * dus daadwerkelijk geïncasseerd is. Los van `Factuur` (de handmatige
- * conceptfactuur-flow).
- */
-export interface PlatformIncasso {
-  id: string;
-  club_id: string;
-  maand: number;
-  jaar: number;
-  bedrag: number;
-  status: PlatformIncassoStatus;
-  mollie_payment_id: string | null;
-  aangemaakt_op: string;
-  bijgewerkt_op: string;
-}
-
 export interface ClubAdmin {
   id: string;
   club_id: string;
@@ -317,5 +297,18 @@ export interface OphaalformulierInput {
   type?: OphaalverzoekType;
   aantal_geschat?: number;
   donatie_bedrag?: number;
+  opmerking?: string;
+}
+
+/** Body voor POST /api/stripe/create-checkout-session — start een echte Stripe-betaling voor een 'glasbak'-donatie (migratie 0015). */
+export interface GlasCheckoutInput {
+  naam: string;
+  email: string;
+  adres: string;
+  postcode: string;
+  telefoonnummer?: string;
+  club_id: string;
+  doel_id: string;
+  bedrag: number;
   opmerking?: string;
 }

@@ -1,17 +1,8 @@
 "use client";
 
 import { FormEvent, useEffect, useState } from "react";
-import Link from "next/link";
 import { motion, AnimatePresence } from "framer-motion";
-import {
-  ArrowLeft,
-  CheckCircle2,
-  Loader2,
-  MessageCircleMore,
-  Smartphone,
-  Wine,
-  ShieldCheck,
-} from "lucide-react";
+import { ArrowLeft, Loader2, Smartphone, Wine } from "lucide-react";
 import { Button } from "@/components/ui/Button";
 import { Input, Label } from "@/components/ui/Input";
 import { Card } from "@/components/ui/Card";
@@ -19,14 +10,17 @@ import { laadDonorProfiel, bewaarDonorProfiel } from "@/lib/donorProfile";
 import { cn, formatEuro, GLAS_NAAR_KAS_OPTIES } from "@/lib/utils";
 import type { Doel } from "@/lib/types";
 
-type Stap = "gegevens" | "bedrag" | "betalen-bevestig" | "betalen-bezig" | "betalen-gelukt" | "versturen" | "verzonden" | "fout";
+type Stap = "gegevens" | "bedrag" | "starten" | "fout";
 
 /**
  * "Glas-naar-Kas": een vooraf betaalde donatie (geen bonnetje-scan) om
- * oud papier/glas te laten weggooien. De betaalstap is bewust en
- * duidelijk gelabeld als DEMO/simulatie — er is geen echte iDeal/
- * Tikkie-integratie, alleen een nagebootste flow zodat de rest van de
- * app (vooraf_betaald, credit-triggers) getest kan worden.
+ * oud papier/glas te laten weggooien. De betaling loopt via een échte
+ * Stripe Checkout-sessie (iDeal) — de browser wordt na "Doneer"
+ * volledig doorgestuurd naar Stripe's hosted betaalpagina; deze
+ * component doet zelf geen betaalstap meer na. Het ophaalverzoek
+ * ontstaat pas server-side, ná bevestigde betaling (zie
+ * /api/stripe/webhook), dus deze flow eindigt hier altijd met een
+ * redirect, nooit met een lokale "verzonden"-state.
  */
 export function GlasNaarKasForm({
   clubId,
@@ -51,7 +45,6 @@ export function GlasNaarKasForm({
   const [bedrag, setBedrag] = useState<number | null>(null);
   const [stap, setStap] = useState<Stap>("gegevens");
   const [foutmelding, setFoutmelding] = useState<string | null>(null);
-  const [ophaalverzoekId, setOphaalverzoekId] = useState<string | null>(null);
 
   useEffect(() => {
     const profiel = laadDonorProfiel();
@@ -70,30 +63,13 @@ export function GlasNaarKasForm({
     setStap("bedrag");
   }
 
-  function startBetaling() {
-    setStap("betalen-bevestig");
-  }
-
-  function bevestigBetaling() {
-    setStap("betalen-bezig");
-  }
-
-  // Gesimuleerde betaalstap: geen echte betaalprovider, enkel een
-  // nagebootste "onderweg naar de bank"-vertraging zodat het voelt als
-  // een échte redirect vóórdat het verzoek definitief geplaatst wordt.
-  useEffect(() => {
-    if (stap !== "betalen-bezig") return;
-    const timeout = setTimeout(() => setStap("betalen-gelukt"), 1600);
-    return () => clearTimeout(timeout);
-  }, [stap]);
-
-  async function plaatsVerzoek() {
+  async function starteBetaling() {
     if (!bedrag) return;
-    setStap("versturen");
+    setStap("starten");
     setFoutmelding(null);
 
     try {
-      const res = await fetch("/api/ophaalverzoeken", {
+      const res = await fetch("/api/stripe/create-checkout-session", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
@@ -104,51 +80,24 @@ export function GlasNaarKasForm({
           telefoonnummer,
           club_id: clubId,
           doel_id: doelId,
-          type: "glasbak",
-          donatie_bedrag: bedrag,
+          bedrag,
           opmerking,
         }),
       });
       const json = await res.json();
 
-      if (!res.ok) {
-        setFoutmelding(json.error ?? "Er ging iets mis, probeer het opnieuw.");
+      if (!res.ok || !json.checkoutUrl) {
+        setFoutmelding(json.error ?? "Kon de betaling niet starten. Probeer het opnieuw.");
         setStap("fout");
         return;
       }
 
-      bewaarDonorProfiel(json.donateurProfiel);
-      setOphaalverzoekId(json.ophaalverzoek.id);
-      setStap("verzonden");
+      bewaarDonorProfiel({ naam, email, adres, postcode, telefoonnummer });
+      window.location.href = json.checkoutUrl;
     } catch {
       setFoutmelding("Kon geen verbinding maken. Probeer het opnieuw.");
       setStap("fout");
     }
-  }
-
-  if (stap === "verzonden") {
-    return (
-      <Card className="flex flex-col items-center gap-3 p-8 text-center">
-        <CheckCircle2 className="h-12 w-12 text-brand-600" />
-        <h2 className="text-xl font-bold text-gray-900">Bedankt namens {clubNaam}!</h2>
-        <p className="text-gray-600">
-          Je donatie van {bedrag && formatEuro(bedrag)} staat klaar — een team komt binnenkort je glas ophalen.
-        </p>
-        {ophaalverzoekId && (
-          <>
-            <p className="text-sm text-gray-500">
-              Bewaar deze link — hierop zie je de status en kun je (anoniem, zonder telefoonnummers uit te
-              wisselen) chatten met het team.
-            </p>
-            <Link href={`/status/${ophaalverzoekId}`} className="w-full">
-              <Button variant="secondary" className="w-full">
-                <MessageCircleMore className="h-4 w-4" /> Bekijk status &amp; chat
-              </Button>
-            </Link>
-          </>
-        )}
-      </Card>
-    );
   }
 
   return (
@@ -262,54 +211,17 @@ export function GlasNaarKasForm({
               ))}
             </div>
 
-            <Button className="mt-5 w-full" size="lg" disabled={!bedrag} onClick={startBetaling}>
+            <Button className="mt-5 w-full" size="lg" disabled={!bedrag} onClick={starteBetaling}>
               <Smartphone className="h-4 w-4" />
-              {bedrag ? `Doneer ${formatEuro(bedrag)} via iDeal/Tikkie` : "Kies eerst een bedrag"}
+              {bedrag ? `Doneer ${formatEuro(bedrag)} via iDeal` : "Kies eerst een bedrag"}
             </Button>
           </motion.div>
         )}
 
-        {(stap === "betalen-bevestig" || stap === "betalen-bezig" || stap === "betalen-gelukt") && bedrag && (
-          <motion.div key="betalen" initial={{ opacity: 0, x: 12 }} animate={{ opacity: 1, x: 0 }} exit={{ opacity: 0, x: -12 }}>
-            <div className="rounded-2xl border border-gray-200 bg-gray-50 p-6 text-center">
-              <p className="mb-4 flex items-center justify-center gap-1.5 text-xs font-semibold uppercase tracking-wide text-gray-400">
-                <ShieldCheck className="h-3.5 w-3.5" /> Gesimuleerd betaalscherm (demo)
-              </p>
-
-              {stap === "betalen-bevestig" && (
-                <>
-                  <Smartphone className="mx-auto h-10 w-10 text-gray-400" />
-                  <p className="mt-3 text-2xl font-extrabold text-gray-900">{formatEuro(bedrag)}</p>
-                  <p className="mt-1 text-sm text-gray-500">Doneren via iDeal/Tikkie aan {clubNaam}</p>
-                  <Button className="mt-5 w-full" onClick={bevestigBetaling}>
-                    Betaal {formatEuro(bedrag)}
-                  </Button>
-                </>
-              )}
-
-              {stap === "betalen-bezig" && (
-                <div className="flex flex-col items-center gap-3 py-4">
-                  <Loader2 className="h-8 w-8 animate-spin text-gray-400" />
-                  <p className="text-sm text-gray-500">Je wordt doorgestuurd naar je bank…</p>
-                </div>
-              )}
-
-              {stap === "betalen-gelukt" && (
-                <div className="flex flex-col items-center gap-3 py-2">
-                  <CheckCircle2 className="h-10 w-10 text-brand-600" />
-                  <p className="font-semibold text-gray-900">Betaling gelukt!</p>
-                  <Button className="mt-2 w-full" onClick={plaatsVerzoek}>
-                    Rit aanmaken
-                  </Button>
-                </div>
-              )}
-            </div>
-          </motion.div>
-        )}
-
-        {stap === "versturen" && (
-          <motion.div key="versturen" initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="flex justify-center py-10">
+        {stap === "starten" && (
+          <motion.div key="starten" initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="flex flex-col items-center gap-3 py-10">
             <Loader2 className="h-6 w-6 animate-spin text-gray-400" />
+            <p className="text-sm text-gray-500">Je wordt doorgestuurd naar Stripe om te betalen…</p>
           </motion.div>
         )}
 

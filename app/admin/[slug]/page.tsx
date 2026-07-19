@@ -44,14 +44,17 @@ export default async function AdminDashboardPage({ params }: { params: Promise<{
   const laatsteFactuur = facturen?.[0];
   const periodeStart = laatsteFactuur?.periode_eind ?? club.created_at;
 
-  // 'glas_naar_kas'-donaties tellen hier gewoon mee — die service valt
-  // onder dezelfde 5%-platformfee als een gewone statiegeld-scan, dus
-  // dit "openstaand"-bedrag moet exact overeenkomen met wat straks
-  // daadwerkelijk gefactureerd wordt.
+  // 'glas_naar_kas'-donaties tellen hier bewust NIET meer mee (sinds
+  // migratie 0015): die lopen via Stripe Checkout, waar de 5%-fee al
+  // automatisch is ingehouden op het moment van betalen. Alleen
+  // fysiek statiegeld (bron 'scan') loopt nog via deze handmatige
+  // conceptfactuur, dus dit "openstaand"-bedrag moet exact
+  // overeenkomen met wat straks daadwerkelijk gefactureerd wordt.
   const { data: openBonnetjes } = await service
     .from("bonnetjes")
     .select("bedrag_euro, teams!inner(club_id)")
     .eq("status", "goedgekeurd")
+    .eq("bron", "scan")
     .eq("teams.club_id", club.id)
     .gt("geverifieerd_op", periodeStart);
 
