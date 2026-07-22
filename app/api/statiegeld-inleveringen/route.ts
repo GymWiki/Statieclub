@@ -31,11 +31,11 @@ export async function GET(request: NextRequest) {
 /**
  * POST /api/statiegeld-inleveringen
  * Registreert een zelf ingeleverd statiegeldbonnetje als 'pending' —
- * het clublid heeft het geld zelf, en spaart dit saldo op totdat het
- * ofwel de €20-drempel haalt om zelf via iDEAL af te rekenen (zie
- * POST /api/stripe/create-checkout-session, scenario 'wallet_payout'),
- * ofwel de actie (`doel_id`) sluit en er automatisch een betaalverzoek
- * voor wordt gegenereerd (migratie 0017, zie lib/actieAfronden.ts).
+ * het clublid heeft het geld zelf, en spaart dit saldo op totdat de
+ * actie (`doel_id`) sluit en er automatisch een betaalverzoek voor
+ * wordt gegenereerd (migratie 0017, zie lib/actieAfronden.ts). Er is
+ * bewust geen zelf-afrekenen tussentijds meer (migratie 0018/Punt 4) —
+ * betalen kan uitsluitend via zo'n betaalverzoek.
  *
  * `doel_id` is optioneel: weggelaten of geen actieve actie gekozen
  * betekent dat het bonnetje aan geen enkele actie hangt — het telt dan

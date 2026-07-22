@@ -11,11 +11,12 @@ import type { Doel, StatiegeldInlevering } from "@/lib/types";
 /**
  * Virtuele Portemonnee: een clublid dat zelf flessen inlevert bij de
  * supermarkt spaart hier het bedrag op (i.p.v. het meteen af te
- * dragen) en rekent het pas af zodra het de €20-drempel haalt — zie
- * migratie 0016 voor waarom dit een ander mechanisme is dan "Scan
- * Eigen Statiegeld". `doelen` (actieve acties van deze club) komt van
- * de server en gaat door naar `StatiegeldRegistreren` voor de
- * doel-picker (migratie 0017).
+ * dragen) — zie migratie 0016 voor waarom dit een ander mechanisme is
+ * dan "Scan Eigen Statiegeld". Rekent nooit zelf tussentijds af
+ * (migratie 0018/Punt 4): pas zodra de actie sluit, genereert de club
+ * automatisch een betaalverzoek (zie BetaalverzoekBanner). `doelen`
+ * (actieve acties van deze club) komt van de server en gaat door naar
+ * `StatiegeldRegistreren` voor de doel-picker (migratie 0017).
  */
 export function Portemonnee({ doelen }: { doelen: Doel[] }) {
   const { gekozenTeam, spelerId } = useTeam();
@@ -77,7 +78,7 @@ export function Portemonnee({ doelen }: { doelen: Doel[] }) {
         </div>
       ) : (
         <>
-          <StatiegeldSaldo spelerId={spelerId} inleveringen={inleveringen} />
+          <StatiegeldSaldo inleveringen={inleveringen} />
           <StatiegeldRegistreren
             spelerId={spelerId}
             clubId={gekozenTeam.club_id}

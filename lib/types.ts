@@ -307,10 +307,15 @@ export interface OphaalformulierInput {
 }
 
 /**
- * Body voor POST /api/stripe/create-checkout-session, scenario A —
- * start een echte Stripe-betaling voor een 'glasbak'-donatie (migratie
- * 0015/0016). `bedrag` is het oorspronkelijke donatiebedrag, ZONDER de
- * eventuele transactiekosten-surcharge (die telt de server op).
+ * Body voor POST /api/stripe/create-checkout-session — start een echte
+ * Stripe-betaling voor een 'glasbak'-donatie (migratie 0015/0016).
+ * `bedrag` is het oorspronkelijke donatiebedrag, ZONDER de eventuele
+ * transactiekosten-surcharge (die telt de server op).
+ *
+ * Er was hier ook een 'wallet_payout'-scenario (een clublid rekent zijn
+ * Virtuele-Portemonnee-saldo zelf tussentijds af) — verwijderd in
+ * migratie 0018/Punt 4: betalen kan uitsluitend via een betaalverzoek,
+ * ná het sluiten van een actie (GET /api/checkout/[betaalverzoek_id]).
  */
 export interface DonationCheckoutInput {
   type: "donation";
@@ -327,27 +332,15 @@ export interface DonationCheckoutInput {
   opmerking?: string;
 }
 
-/**
- * Body voor POST /api/stripe/create-checkout-session, scenario B —
- * rekent het volledige openstaande saldo van een clublid in één keer
- * af (migratie 0016). `club_id` wordt server-side genegeerd/geverifieerd
- * aan de hand van de speler zelf — nooit blind vertrouwd vanuit de client.
- */
-export interface WalletPayoutCheckoutInput {
-  type: "wallet_payout";
-  speler_id: string;
-  club_id: string;
-}
-
-export type StripeCheckoutInput = DonationCheckoutInput | WalletPayoutCheckoutInput;
+export type StripeCheckoutInput = DonationCheckoutInput;
 
 /**
  * 'pending' -> 'processed_for_payment' (meegenomen in een
  * betaalverzoek bij het afronden van een actie, migratie 0017) ->
- * 'paid' (zodra dat betaalverzoek is afgerekend). Een rij kan ook
- * rechtstreeks van 'pending' naar 'paid' gaan via de handmatige
- * "Reken af via iDEAL"-knop in de Virtuele Portemonnee, zonder ooit
- * een betaalverzoek te doorlopen.
+ * 'paid' (zodra dat betaalverzoek is afgerekend). Sinds migratie
+ * 0018/Punt 4 is er geen rechtstreekse 'pending' -> 'paid'-weg meer
+ * (de zelf-afrekenknop in de Virtuele Portemonnee is verwijderd) — elke
+ * betaling loopt via een `Betaalverzoek`.
  */
 export type StatiegeldInleveringStatus = "pending" | "processed_for_payment" | "paid";
 
@@ -356,9 +349,8 @@ export type StatiegeldInleveringStatus = "pending" | "processed_for_payment" | "
  * Virtuele Portemonnee (migratie 0016) — losstaand van `Bonnetje`
  * (dat hoort bij de ophaal-/scan-flow en credit direct het team). Blijft
  * 'pending' totdat het (samen met andere pending-rijen van dezelfde
- * speler) via een Stripe-afrekening op 'paid' wordt gezet — hetzij
- * rechtstreeks (portemonnee-knop), hetzij via een automatisch
- * gegenereerd `Betaalverzoek` bij het afronden van een actie.
+ * speler) via een automatisch gegenereerd `Betaalverzoek` bij het
+ * afronden van een actie op 'paid' wordt gezet.
  */
 export interface StatiegeldInlevering {
   id: string;

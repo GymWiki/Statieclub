@@ -144,18 +144,11 @@ export const TRANSACTIEKOSTEN_EURO = 0.35;
 // ─────────────────────────────────────────────────────────────
 
 /**
- * Minimumsaldo vóór een clublid via iDEAL kan afrekenen — spreidt de
- * vaste transactiekosten uit over meerdere kleine bonnetjes i.p.v. per
- * bonnetje afzonderlijk af te rekenen.
- */
-export const WALLET_PAYOUT_MINIMUM_EURO = 20;
-
-/**
  * Drempel voor de "Set and Forget" campagne-afrekening (migratie
- * 0017/lib/actieAfronden.ts): lager dan de vrijwillige
- * WALLET_PAYOUT_MINIMUM_EURO omdat dit een eenmalig afsluitmoment is
- * (de actie sluit toch al) i.p.v. een doorlopende spaarkeuze — onder
- * dit bedrag schuift het saldo door naar de volgende actie i.p.v. een
+ * 0017/lib/actieAfronden.ts): een clublid rekent nooit zelf tussentijds
+ * af (migratie 0018/Punt 4 — betalen kan uitsluitend via een
+ * betaalverzoek, ná het sluiten van een actie) — onder dit bedrag
+ * schuift het saldo door naar de volgende actie i.p.v. een
  * betaalverzoek van een paar cent te genereren.
  */
 export const CAMPAGNE_AFREKENING_MINIMUM_EURO = 1;

@@ -361,17 +361,24 @@ bedragen worden in centen (integers) opgeteld i.p.v. met floats, om
 afrondingsverschillen tussen wat de donateur ziet en wat Stripe
 uiteindelijk in rekening brengt te voorkomen.
 
-**2. Virtuele Portemonnee: gebundelde afrekening voor clubleden**
+**2. Virtuele Portemonnee: opsparen voor clubleden**
 (`/club/[slug]/portemonnee`). Een clublid dat zelf flessen inlevert
-bij de supermarkt houdt het statiegeld zelf en betaalt het bedrag zelf
-terug aan de club — maar pas in één keer zodra het gespaarde saldo de
-`WALLET_PAYOUT_MINIMUM_EURO`-drempel (€20) haalt, i.p.v. per bonnetje
-apart af te rekenen. Dit is een fundamenteel ander mechanisme dan
-"Scan Eigen Statiegeld" (migratie 0008): daar gaat het geld nog
-gewoon fysiek naar de club en is de bonnetjes-rij puur een
+bij de supermarkt houdt het statiegeld zelf en spaart het bedrag op
+i.p.v. het meteen af te dragen. Dit is een fundamenteel ander
+mechanisme dan "Scan Eigen Statiegeld" (migratie 0008): daar gaat het
+geld nog gewoon fysiek naar de club en is de bonnetjes-rij puur een
 scoreregistratie; hier bestaat er geen fysieke overdracht en is een
 échte Stripe-betaling nodig. Beide bestaan naast elkaar, voor
 verschillende situaties.
+
+Sinds migratie `0018_bonnetjes_via_betaalverzoeken.sql` (Punt 4) kan
+een clublid dit saldo niet meer zelf tussentijds afrekenen — de
+vroegere "Reken af via iDEAL"-knop en het `'wallet_payout'`-scenario in
+`create-checkout-session` zijn verwijderd, zowel client- als
+server-side. Betalen kan uitsluitend nadat een actie sluit en de club
+daarmee automatisch een `Betaalverzoek` genereert (zie hieronder) —
+"Blokkeer directe betalingen zonder openstaand verzoek", zoals
+gevraagd.
 
 - **`statiegeld_inleveringen`** (migratie 0016): `speler_id` i.p.v.
   het gevraagde `user_id` — deze app heeft geen Supabase Auth voor
@@ -383,27 +390,13 @@ verschillende situaties.
 - **`StatiegeldRegistreren.tsx`**: bedrag + optionele bonnetje-foto
   (hergebruikt de bestaande publieke `bonnetjes`-storage-bucket) →
   `POST /api/statiegeld-inleveringen`, status altijd `'pending'`.
-- **`StatiegeldSaldo.tsx`**: telt alle `'pending'`-rijen van de speler
-  op; de "Reken af via iDEAL"-knop is disabled zolang het saldo onder
-  €20 zit ("Spaar door tot €20 om af te rekenen"), zowel client-side
-  (UX) als server-side (afgedwongen in `create-checkout-session`).
-- **`create-checkout-session`, scenario `'wallet_payout'`**: leidt
-  `club_id` altijd af van de speler zelf (nooit blind vertrouwd
-  vanuit de client), telt de `'pending'`-rijen in centen op, en
-  **stempelt exact die rij-id's** met de nieuwe
-  `stripe_checkout_session_id` vóórdat de checkout-URL wordt
-  teruggegeven. Dat voorkomt een race condition: een bonnetje dat de
-  gebruiker ná het starten van de afrekening toevoegt, mag nooit per
-  ongeluk in diezelfde betaling worden meegenomen door de webhook.
-- **Webhook**: `checkout.session.completed` dispatcht voortaan op
-  `session.metadata.type`. Voor `'wallet_payout'`: `update
-  statiegeld_inleveringen set status = 'paid' where
-  stripe_checkout_session_id = session.id and status = 'pending'` —
-  vanzelf idempotent, want een herhaalde aflevering van hetzelfde
-  event vindt de tweede keer niets meer om bij te werken.
-- De Portemonnee-pagina pollt kort na een geslaagde afrekening
-  (`?betaling=gelukt`) omdat de webhook net als bij Glas-naar-Kas niet
-  gegarandeerd vóór de browser-redirect is verwerkt.
+- **`StatiegeldSaldo.tsx`**: puur informatief — toont het opgespaarde
+  saldo en de geschiedenis, zonder afrekenknop. Een tekst legt uit dat
+  betalen via een betaalverzoek loopt zodra de actie sluit.
+- De Portemonnee-pagina pollt nog altijd kort na een geslaagde
+  afrekening (`?betaling=gelukt`) — dat query-param komt nu uitsluitend
+  van `GET /api/checkout/[betaalverzoek_id]` (zie hieronder), niet meer
+  van een eigen `create-checkout-session`-scenario.
 
 ### "Set and Forget" campagne-afrekening (migratie 0017)
 
@@ -420,16 +413,17 @@ nodig, vandaar "set and forget".
   `CRON_SECRET`-beveiligd, zie `vercel.json`) als de handmatige
   override-knop (`POST /api/doelen/[id]/afronden`) in
   `DoelenBeheer.tsx` — beide paden lopen dus exact dezelfde code.
-- **Aggregatie**: pakt alle `'pending'` `statiegeld_inleveringen` van
+- **Aggregatie**: pakt alle `'pending'` `statiegeld_inleveringen` én
+  goedgekeurde `bron = 'scan'` `bonnetjes` (migratie 0018, Punt 2) van
   de club die óf aan déze actie hangen, óf aan geen enkele actie hangen
   (`doel_id is null` — bijv. na een eerdere rollover), groepeert per
-  speler. Boven `CAMPAGNE_AFREKENING_MINIMUM_EURO` (€1 — bewust veel
-  lager dan de vrijwillige `WALLET_PAYOUT_MINIMUM_EURO` van €20, want
-  dit is een eenmalig afsluitmoment, geen doorlopende spaarkeuze):
+  speler. Boven `CAMPAGNE_AFREKENING_MINIMUM_EURO` (€1 — een eenmalig
+  afsluitmoment, geen doorlopende spaarkeuze, vandaar een lage drempel):
   maakt een `betaalverzoeken`-rij aan en zet de rijen op
-  `'processed_for_payment'`. Eronder: `doel_id` wordt losgekoppeld
-  (rollover) maar de rij blijft `'pending'`, en schuift zo automatisch
-  door naar de eerstvolgende actie die sluit.
+  `'processed_for_payment'` (`statiegeld_inleveringen`) resp. koppelt
+  ze via `betaalverzoek_id` (`bonnetjes`). Eronder: `doel_id` wordt
+  losgekoppeld (rollover) maar de rij blijft `'pending'`, en schuift zo
+  automatisch door naar de eerstvolgende actie die sluit.
 - **`statiegeld_inleveringen.betaalverzoek_id`** is een directe
   koppeling (niet enkel op status matchen) — een speler kan tegelijk
   een ouder, nog niet betaald betaalverzoek hebben terwijl een nieuwe
