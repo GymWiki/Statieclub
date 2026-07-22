@@ -1,6 +1,7 @@
 import type { Metadata, Viewport } from "next";
 import { Inter, Plus_Jakarta_Sans } from "next/font/google";
 import { cn } from "@/lib/utils";
+import { organizationJsonLd } from "@/lib/structuredData";
 import "./globals.css";
 
 const display = Plus_Jakarta_Sans({
@@ -19,8 +20,10 @@ const body = Inter({
 
 const SITE_URL = process.env.NEXT_PUBLIC_SITE_URL || "http://localhost:3000";
 const SITE_TITEL = "Statieclub — Statiegeld inzamelen voor jouw sportclub";
+// Max. 155 tekens (SEO-richtlijn) — de volledige verhaallijn staat
+// verderop in de pagina's zelf; dit is bewust de compacte SERP-versie.
 const SITE_BESCHRIJVING =
-  "Statieclub koppelt statiegeld-donateurs aan lokale sportclubs. Geef je flessen en blikjes aan een jeugdteam bij jou in de buurt — gratis, duurzaam en binnen een paar klikken geregeld. Clubs zetten in minuten een fondsenwervingscampagne op, zonder spreadsheets of contant geld.";
+  "Statiegeld inzamelen voor je club: buurtbewoners doneren, jeugdteams halen op. Gratis, duurzaam en binnen een paar klikken geregeld.";
 
 export const metadata: Metadata = {
   metadataBase: new URL(SITE_URL),
@@ -46,6 +49,10 @@ export const metadata: Metadata = {
   alternates: {
     canonical: "/",
   },
+  // Geen `images` hier: `app/opengraph-image.tsx` (bestandsconventie)
+  // genereert 'm automatisch en Next.js vult zowel og:image als
+  // twitter:image daarmee — een handmatige `/og-image.png`-referentie
+  // zou een niet-bestaand bestand zijn geweest.
   openGraph: {
     type: "website",
     locale: "nl_NL",
@@ -53,23 +60,11 @@ export const metadata: Metadata = {
     siteName: "Statieclub",
     title: SITE_TITEL,
     description: SITE_BESCHRIJVING,
-    images: [
-      {
-        // Voeg dit bestand toe onder public/og-image.png (1200×630) voor een
-        // volledig ingevulde preview-kaart — zonder dat bestand valt het
-        // delen terug op alleen titel/beschrijving.
-        url: "/og-image.png",
-        width: 1200,
-        height: 630,
-        alt: "Statieclub — statiegeld inzamelen voor jouw sportclub",
-      },
-    ],
   },
   twitter: {
     card: "summary_large_image",
     title: SITE_TITEL,
     description: SITE_BESCHRIJVING,
-    images: ["/og-image.png"],
   },
   robots: {
     index: true,
@@ -87,7 +82,15 @@ export const viewport: Viewport = {
 export default function RootLayout({ children }: { children: React.ReactNode }) {
   return (
     <html lang="nl" className={cn(display.variable, body.variable)}>
-      <body className="min-h-dvh font-body antialiased">{children}</body>
+      <body className="min-h-dvh font-body antialiased">
+        {children}
+        {/* Organization-schema staat hier (i.p.v. alleen op de homepage) omdat het de
+            merkidentiteit beschrijft en dus op elke pagina relevant is. */}
+        <script
+          type="application/ld+json"
+          dangerouslySetInnerHTML={{ __html: JSON.stringify(organizationJsonLd) }}
+        />
+      </body>
     </html>
   );
 }
