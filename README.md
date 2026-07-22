@@ -88,8 +88,12 @@ overbodige informatie van de andere rollen te tonen:
 app/
   page.tsx                        Marketing-landingspagina — LandingPageContainer (rol-bewust: Nav/Hero/ActivityTicker/Features/ImpactStats/PricingPromise/HowItWorks/WhyBetter/CallToAction/Faq/Footer)
   donateren/page.tsx              Functionele donor-flow (postcode + live clubgrid, met ?postcode=)
-  clubs/[slug]/page.tsx           Club-detail + ophaalformulier (donor)
-  speler/page.tsx                 Generieke club-zoekpagina voor "Inloggen als Speler"
+  clubs/[slug]/page.tsx           Club-detail + ophaalformulier (donor), generateMetadata per club
+  speler/page.tsx                 Generieke club-zoekpagina voor "Inloggen als Speler" (noindex)
+  statiegeld-inzamelen-*/         5 SEO-landingspagina's per sport/use-case (zie lib/landingPages.ts)
+  sponsoractie-sportclub/, geld-inzamelen-vereniging/
+  robots.ts, sitemap.ts           Dynamische robots.txt/sitemap.xml (Next.js file-conventions)
+  opengraph-image.tsx, icon.tsx   Gegenereerde OG-card + favicon (next/og ImageResponse)
   status/[ophaalverzoekId]/       Donateur "magic link"-statuspagina + anonieme chat
   club/[slug]/layout.tsx          Mobiele shell voor teamleden (teamkeuze + bottom nav)
   club/[slug]/leaderboard/        Live scorebord + persoonlijke topscorers + Klapper van de Week
@@ -602,6 +606,123 @@ data-fetch duurt.
   hier op "lid van de club", niet op individuele authenticatie. Voor
   een productie-uitrol is het aan te raden hier alsnog `team_members` +
   Supabase Auth voor te gebruiken.
+
+## SEO
+
+Volledige SEO-optimalisatie: technische fixes, structured data en
+nieuwe landingspagina's op zoekintentie. Kernterm-strategie:
+"statiegeld inzamelen", "statiegeldactie", "clubkas spekken",
+"sponsoractie sportclub", "geld inzamelen vereniging".
+
+### Technisch
+
+- **Per-pagina metadata**: vóór deze wijziging had **geen enkele**
+  pagina een eigen `metadata`-export — elke URL toonde dezelfde
+  root-titel/beschrijving. Nu heeft elke publieke pagina een unieke
+  title (keyword vooraan, ≤60 tekens incl. de `" — Statieclub"`-
+  suffix uit het `title.template` in `app/layout.tsx`) en description
+  (≤155 tekens): `/`, `/donateren`, en dynamisch per club via
+  `generateMetadata` op `/clubs/[slug]` (clubnaam + regio, met
+  tekst-truncatie zodat een lange clubnaam de titellimiet niet
+  doorbreekt — de club-fetch is gedeeld tussen `generateMetadata` en
+  de pagina via React's `cache()`, zodat Supabase niet twee keer wordt
+  bevraagd voor dezelfde request).
+- **`app/robots.ts` + `app/sitemap.ts`** (Next.js file-conventions,
+  dynamisch): sitemap bevat `/`, `/donateren`, de 5 nieuwe
+  landingspagina's en elke actieve club (`/clubs/[slug]`, met
+  `lastModified` uit `updated_at`). robots.txt disallowt `/admin`,
+  `/club`, `/status`, `/donateren/bedankt` en `/api`.
+- **`noindex` op private/app-pagina's**: `app/admin/layout.tsx` en
+  `app/club/[slug]/layout.tsx` zetten `robots: {index:false}` voor hun
+  hele subboom (dashboards, teamweergaven — authenticatie- of
+  link-gated, geen zoekwaarde) i.p.v. dit per pagina te herhalen.
+  `/status/[id]` (persoonsgebonden magic-link) en `/speler` (dunne
+  doorgeefluik-pagina) krijgen dezelfde behandeling individueel.
+  `/donateren/bedankt` was een `"use client"`-pagina en kon dus geen
+  eigen metadata exporteren; de inhoud verhuisde naar
+  `components/donor/BedanktPagina.tsx` zodat `page.tsx` een dunne
+  server-wrapper met `noindex`-metadata kan zijn. `/admin/login`
+  (ook client-only) had die refactor niet nodig — erft `noindex`
+  automatisch via `app/admin/layout.tsx`.
+- **Open Graph / Twitter Card + favicon**: `app/opengraph-image.tsx` +
+  `app/icon.tsx` genereren een merk-consistente kaart/favicon via
+  `next/og`'s `ImageResponse` — de metadata verwees voorheen naar een
+  `public/og-image.png` dat niet bestond (kapotte previews bij delen).
+  Next.js' bestandsconventie overschrijft automatisch zowel
+  `openGraph.images` als (bij afwezigheid van een eigen
+  `twitter.images`) `twitter:image`; de handmatige `images`-arrays in
+  `app/layout.tsx`'s metadata-object zijn daarom verwijderd i.p.v.
+  dubbel te specificeren.
+- **`lang="nl"`, canonical tags, `alt`-teksten, lazy loading**: waren
+  al aanwezig vóór deze wijziging (`lang="nl"` en de root-canonical
+  dateren uit een eerdere sessie-taak). Alle afbeeldingen lopen al via
+  `next/image` (automatische lazy-load + optimalisatie) mét alt-tekst
+  — de UI is verder vrijwel volledig SVG-iconen, geen zware
+  raster-assets om te comprimeren.
+
+### Structured data (JSON-LD)
+
+- **`Organization`** (`app/layout.tsx`, site-breed): bedrijfsgegevens
+  hergebruikt uit `Footer.tsx` (KVK/BTW/adres) i.p.v. dubbel te
+  onderhouden.
+- **`WebApplication`** + **`FAQPage`** (`app/page.tsx`, homepage-
+  specifiek): de FAQPage hergebruikt dezelfde data als de zichtbare
+  Faq-accordion. Die data staat in `lib/faqData.ts` — bewust **niet**
+  in `components/marketing/Faq.tsx` zelf, want een server component
+  (`app/page.tsx`) kan geen databinding importeren uit een
+  `"use client"`-module zonder de RSC-boundary te breken (de build
+  faalde daar eerst op: *"Attempted to call map() from the server but
+  map is on the client"*).
+- Alle drie via `lib/structuredData.ts`, gerenderd als
+  `<script type="application/ld+json">` — de aanbevolen Next.js-aanpak
+  nu de Metadata API zelf geen JSON-LD ondersteunt.
+
+### Content: homepage-copy en nieuwe landingspagina's
+
+- **Homepage-copy**: de donateur-hero (`HeroSelector.tsx`, de variant
+  die Google standaard ziet bij een crawl) is herschreven zodat
+  "statiegeld inzamelen voor je club" natuurlijk terugkomt in de H1,
+  de subtekst én de daadwerkelijke CTA-knop. Let op: de CTA voor de
+  donateur-rol is niet het (ongebruikte) `ctaLabel`-veld in de
+  `ROLLEN`-array — dat wordt voor deze rol nooit gerenderd — maar de
+  submit-knop van `PostcodeZoeker`, die dus ook is aangepast.
+- **5 nieuwe landingspagina's** op zoekintentie: `/statiegeld-
+  inzamelen-voetbalclub`, `-hockeyclub`, `-tennisclub`,
+  `/sponsoractie-sportclub`, `/geld-inzamelen-vereniging`
+  (`lib/landingPages.ts` bevat de content-catalogus). Elke pagina
+  heeft een unieke hero + 3 pijnpunten (echte, sport-/doelgroep-
+  specifieke copy — geen doorway-pages), en hergebruikt daarna de
+  bestaande, al geverifieerde bestuur-content
+  (`components/marketing/landing/LandingPage.tsx` rendert `Features`/
+  `HowItWorks`/`CallToAction` met `activeRole="bestuur"` vast
+  ingesteld, i.p.v. de wisselende rol op de homepage, plus de `Faq`).
+  **Belangrijke RSC-valkuil die hier is opgelost**: `LucideIcon`-
+  componentreferenties (functies) kunnen niet als prop van een server
+  component naar een `"use client"`-component — `LandingPage`
+  (server) rendert de iconen uit `lib/landingPages.ts` daarom zelf tot
+  JSX vóórdat ze naar `LandingHero`/`LandingPainPoints` gaan, anders
+  faalt de build op *"Functions cannot be passed directly to Client
+  Components"*.
+- **Interne links**: `Footer.tsx` kreeg een "Voor jouw club"-kolom met
+  links naar alle 5 landingspagina's, gegenereerd uit
+  `lib/landingPages.ts` (nooit een label/slug uit de pas). Elke
+  landingspagina linkt terug naar `/donateren` ("Ben je zelf
+  donateur?"). Kleine bijvangst: `/clubs/[slug]`'s "Kies een andere
+  club"-link wees naar de marketing-homepage (`/`) i.p.v. naar de
+  functionele clubzoeker (`/donateren`) — gecorrigeerd.
+
+### Open punten buiten de codebase
+
+- **Google Search Console**: de sitemap kan niet door Claude worden
+  ingediend — dat vereist inloggen op het Google-account van de
+  eigenaar. Zodra `NEXT_PUBLIC_SITE_URL` in productie op het echte
+  domein staat: Search Console → Sitemaps → `sitemap.xml` indienen
+  (nadat het domein daar als property is geverifieerd).
+- **Google Bedrijfsprofiel** en **backlinks** (bijv. vermeldingen bij
+  KNVB/KNHB/KNLTB-verenigingsoverzichten): buiten codebase-scope.
+- **Juridische pagina's** (Algemene Voorwaarden/Privacybeleid/
+  Cookiebeleid) zijn nog steeds `#`-placeholders in de footer — geen
+  SEO-actie, maar vraagt om echte, juridisch gecontroleerde tekst.
 
 ## Hybride OCR Bonnetjes Scanner (`ReceiptScanner`)
 
