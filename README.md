@@ -866,6 +866,55 @@ handmatige conceptfactuur.
   `components/ui/Toggle.tsx`): een herbruikbare toggle-switch, één per
   team, met `PATCH /api/teams/[id]`.
 
+## Optioneel donateur-account: "Mijn donaties" (`/aanbieder`, migratie 0020)
+
+De bestaande, frictieloze anonieme donatieflow (`/donateren`,
+`OphaalForm.tsx`, de Stripe-webhook) blijft **volledig ongewijzigd** —
+geen account nodig om te doneren of flessen op te laten halen. Dit is
+een nieuwe, optionele laag ernaast voor wie zijn/haar geschiedenis wil
+terugzien: een "aanbieder"-account (Supabase Auth, e-mail + wachtwoord,
+zelfde onboarding-stijl als `/admin/login`) met een dashboard.
+
+- **`donateurs.user_id`** (nullable, uniek): de optionele koppeling
+  naar een Auth-account. `donateurs.naam`/`.adres`/`.postcode` zijn
+  sinds deze migratie ook nullable — een donateur die zich aanmeldt
+  vóórdat hij ooit gedoneerd heeft, krijgt een verder lege rij die
+  zichzelf vult zodra de eerstvolgende (evt. weer anonieme) donatie op
+  hetzelfde e-mailadres binnenkomt (de bestaande upsert-op-`email` in
+  de webhook/`POST /api/ophaalverzoeken` doet dat toch al).
+- **`koppel_donateur_account()`** (security-definer RPC, zelfde patroon
+  als `maak_club_met_beheerder` uit migratie 0006): koppelt (of maakt)
+  de `donateurs`-rij van de AANROEPENDE gebruiker op basis van diens
+  eigen, geverifieerde `auth.users`-e-mailadres — nooit een los
+  meegegeven parameter, want dat zou iemand anders' donatiegeschiedenis
+  kunnen laten claimen. Idempotent, dus veilig om bij elk bezoek
+  opnieuw aan te roepen.
+- **`app/aanbieder/login/page.tsx`**: functioneel identiek aan
+  `/admin/login` (zelfde inloggen/aanmelden-toggle-component), maar
+  redirect na succes naar `/aanbieder` i.p.v. `/admin`.
+- **`lib/donateurAuth.ts#vereisDonateurToegang`**: mirror van
+  `lib/adminAuth.ts#vereisClubToegang`. Roept bij elke `/aanbieder`-
+  pageload `koppel_donateur_account()` aan en gebruikt de teruggegeven
+  rij direct — geen aparte service-role-fetch nodig.
+- **`app/aanbieder/page.tsx`** toont exact de twee dingen uit de
+  opdracht:
+  - **Actieve ophaalacties**: `ophaalverzoeken` van deze donateur met
+    `status <> 'voltooid'`.
+  - **Totaal gedoneerd, per actie en overall**: opgeteld uit
+    goedgekeurde `bonnetjes` gekoppeld via hun `ophaalverzoek_id` aan
+    deze donateur — zowel een statiegeld-ophaalrit (bonnetje-scan door
+    het team) als een glasbak-donatie (`POST
+    /api/ophaalverzoeken/[id]/voltooi-glas` maakt óók een
+    `bonnetjes`-rij aan, zie hierboven) resulteren in zo'n rij, dus één
+    aggregatie dekt allebei zonder een apart `donatie_bedrag`-pad nodig
+    te hebben.
+- **Vindbaarheid**: geen aparte marketing-CTA, maar een subtiele link
+  op `/status/[ophaalverzoekId]` (de bestaande "magic link"-pagina na
+  een donatie) — precies het moment waarop iemand net gedoneerd heeft
+  en het meest geneigd is er een account bij aan te maken.
+- **`/aanbieder/*`** staat op `robots: noindex` (`app/aanbieder/
+  layout.tsx`) en in `app/robots.ts`'s disallow-lijst, net als `/admin`.
+
 ## Promotiemateriaal: downloadbare flyers/posters (`/admin/[slug]/promotie`)
 
 Een "Promotie"-tab in `AdminTabs.tsx` geeft besturen toegang tot kant-en-

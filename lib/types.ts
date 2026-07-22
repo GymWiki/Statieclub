@@ -82,14 +82,17 @@ export interface DoelMetTeams extends Doel {
 
 export interface Donateur {
   id: string;
-  naam: string;
+  /** Null tot de eerste (evt. anonieme) donatie op dit e-mailadres binnenkomt — zie migratie 0020. */
+  naam: string | null;
   email: string;
-  adres: string;
-  postcode: string;
+  adres: string | null;
+  postcode: string | null;
   telefoonnummer: string | null;
   /** Optioneel — alleen server-side gebruikt (afstand + fuzzy kaart-cirkel), nooit direct naar de client. */
   lat: number | null;
   lng: number | null;
+  /** Optionele koppeling naar een Supabase Auth-account (migratie 0020, "aanbieder"-dashboard) — null betekent nog nooit ingelogd. */
+  user_id: string | null;
   created_at: string;
   updated_at: string;
 }

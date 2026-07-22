@@ -1,4 +1,5 @@
 import type { Metadata } from "next";
+import Link from "next/link";
 import { notFound } from "next/navigation";
 import { Trophy, Package } from "lucide-react";
 import { createServiceRoleClient } from "@/lib/supabase/server";
@@ -78,6 +79,14 @@ export default async function StatusPage({ params }: { params: Promise<{ ophaalv
           gesloten={chatIsGesloten(verzoek.status)}
         />
       </div>
+
+      <p className="text-center text-xs text-gray-400">
+        Wil je al je ophaalacties en donaties op één plek zien?{" "}
+        <Link href="/aanbieder/login" className="font-semibold text-brand-700 hover:underline">
+          Maak een gratis account
+        </Link>
+        .
+      </p>
     </div>
   );
 }
