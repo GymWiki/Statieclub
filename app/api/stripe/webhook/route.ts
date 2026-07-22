@@ -45,9 +45,21 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ error: "Webhook niet geconfigureerd." }, { status: 400 });
   }
 
+  // stripeClient() staat BUITEN de handtekening-try/catch: een
+  // ontbrekende STRIPE_SECRET_KEY is een configuratiefout, geen
+  // ongeldige handtekening — deze twee mogen nooit dezelfde 400
+  // "Ongeldige handtekening." teruggeven, anders lijkt een misconfigured
+  // deployment een aanval en is de echte oorzaak onvindbaar in de logs.
+  let stripe;
+  try {
+    stripe = stripeClient();
+  } catch (err) {
+    console.error("[stripe webhook] configuratiefout:", err);
+    return NextResponse.json({ error: "Stripe is niet correct geconfigureerd op de server." }, { status: 500 });
+  }
+
   let event: Stripe.Event;
   try {
-    const stripe = stripeClient();
     event = await stripe.webhooks.constructEventAsync(rawBody, signature, webhookSecret);
   } catch (err) {
     console.error("[stripe webhook] ongeldige handtekening:", err);
