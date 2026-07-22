@@ -1,3 +1,5 @@
+import { cache } from "react";
+import type { Metadata } from "next";
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { ArrowLeft, Target } from "lucide-react";
@@ -8,6 +10,46 @@ import { Card } from "@/components/ui/Card";
 import { formatEuro, formatVoortgang } from "@/lib/utils";
 import type { Club, Doel } from "@/lib/types";
 
+// React's cache() dedupliceert deze query binnen één request: zowel
+// generateMetadata als de pagina zelf roepen getClub(slug) aan, zonder
+// de club twee keer bij Supabase op te halen.
+const getClub = cache(async (slug: string) => {
+  const supabase = await createClient();
+  const { data: club } = await supabase
+    .from("clubs")
+    .select("*")
+    .eq("slug", slug)
+    .eq("is_actief", true)
+    .single<Club>();
+  return club as Club | null;
+});
+
+function kortClubnaam(naam: string, maxLengte: number): string {
+  return naam.length > maxLengte ? `${naam.slice(0, maxLengte - 1).trimEnd()}…` : naam;
+}
+
+export async function generateMetadata({
+  params,
+}: {
+  params: Promise<{ slug: string }>;
+}): Promise<Metadata> {
+  const { slug } = await params;
+  const club = await getClub(slug);
+  if (!club) return {};
+
+  // Budget: 60 tekens totaal min. de " — Statieclub"-suffix (13 tekens)
+  // min. "Statiegeld doneren aan " (24 tekens) = 23 tekens voor de naam.
+  const titel = `Statiegeld doneren aan ${kortClubnaam(club.naam, 23)}`;
+  const beschrijving = `Steun ${club.naam} in ${club.regio} met je statiegeld — vul je adres in en een jeugdteam haalt je flessen gratis op.`;
+
+  return {
+    title: titel,
+    description: beschrijving.slice(0, 155),
+    alternates: { canonical: `/clubs/${slug}` },
+    openGraph: { title: titel, description: beschrijving.slice(0, 155) },
+  };
+}
+
 export default async function ClubDetailPage({
   params,
   searchParams,
@@ -17,17 +59,11 @@ export default async function ClubDetailPage({
 }) {
   const { slug } = await params;
   const { type } = await searchParams;
-  const supabase = await createClient();
-
-  const { data: club } = await supabase
-    .from("clubs")
-    .select("*")
-    .eq("slug", slug)
-    .eq("is_actief", true)
-    .single<Club>();
+  const club = await getClub(slug);
 
   if (!club) notFound();
 
+  const supabase = await createClient();
   const { data: doelen } = await supabase
     .from("doelen")
     .select("*")
@@ -52,7 +88,10 @@ export default async function ClubDetailPage({
 
   return (
     <div className="mx-auto max-w-lg px-4 py-8">
-      <Link href="/" className="mb-6 inline-flex items-center gap-1 text-sm font-medium text-gray-500 hover:text-gray-700">
+      <Link
+        href="/donateren"
+        className="mb-6 inline-flex items-center gap-1 text-sm font-medium text-gray-500 hover:text-gray-700"
+      >
         <ArrowLeft className="h-4 w-4" /> Kies een andere club
       </Link>
 

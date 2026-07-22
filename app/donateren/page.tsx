@@ -1,6 +1,14 @@
+import type { Metadata } from "next";
 import { createClient } from "@/lib/supabase/server";
 import { DonorHome } from "@/components/donor/DonorHome";
 import type { Club, Doel } from "@/lib/types";
+
+export const metadata: Metadata = {
+  title: "Statiegeld doneren aan een sportclub bij jou",
+  description:
+    "Statiegeld doneren aan een sportclub bij jou in de buurt: vul je postcode in, kies een club en laat je flessen gratis ophalen.",
+  alternates: { canonical: "/donateren" },
+};
 
 export default async function DonerenPage({
   searchParams,
