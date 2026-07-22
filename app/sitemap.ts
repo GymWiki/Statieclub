@@ -1,5 +1,6 @@
 import type { MetadataRoute } from "next";
 import { createServiceRoleClient } from "@/lib/supabase/server";
+import { LANDING_PAGE_LIJST } from "@/lib/landingPages";
 import type { Club } from "@/lib/types";
 
 const SITE_URL = process.env.NEXT_PUBLIC_SITE_URL || "http://localhost:3000";
@@ -28,6 +29,13 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
     })
   );
 
+  const landingPageEntries: MetadataRoute.Sitemap = LANDING_PAGE_LIJST.map((pagina) => ({
+    url: `${SITE_URL}/${pagina.slug}`,
+    lastModified: new Date(),
+    changeFrequency: "monthly",
+    priority: 0.8,
+  }));
+
   return [
     {
       url: SITE_URL,
@@ -41,6 +49,7 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
       changeFrequency: "daily",
       priority: 0.9,
     },
+    ...landingPageEntries,
     ...clubEntries,
   ];
 }
