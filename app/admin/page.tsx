@@ -4,6 +4,7 @@ import { PlusCircle } from "lucide-react";
 import { createClient } from "@/lib/supabase/server";
 import { Card } from "@/components/ui/Card";
 import { NieuweClubForm } from "@/components/admin/NieuweClubForm";
+import { JoinClubForm } from "@/components/admin/JoinClubForm";
 
 export default async function AdminIndexPage() {
   const supabase = await createClient();
@@ -29,11 +30,30 @@ export default async function AdminIndexPage() {
       <div className="mx-auto max-w-lg px-4 py-10">
         <h1 className="text-xl font-bold text-gray-900">Welkom!</h1>
         <p className="mt-1 text-sm text-gray-500">
-          Je hebt nog geen club om te beheren. Maak er hieronder één aan — je wordt automatisch
-          beheerder.
+          Je hebt nog geen club om te beheren. Sluit je aan bij een bestaande club, of maak er zelf
+          één aan.
         </p>
-        <div className="mt-6">
-          <NieuweClubForm />
+
+        <div className="mt-6 space-y-6">
+          <div>
+            <h2 className="text-sm font-semibold text-gray-700">Bestaande club selecteren</h2>
+            <div className="mt-2">
+              <JoinClubForm />
+            </div>
+          </div>
+
+          <div className="flex items-center gap-3 text-xs font-medium uppercase tracking-wide text-gray-400">
+            <div className="h-px flex-1 bg-gray-200" />
+            of
+            <div className="h-px flex-1 bg-gray-200" />
+          </div>
+
+          <div>
+            <h2 className="text-sm font-semibold text-gray-700">Nieuwe club toevoegen</h2>
+            <div className="mt-2">
+              <NieuweClubForm />
+            </div>
+          </div>
         </div>
       </div>
     );

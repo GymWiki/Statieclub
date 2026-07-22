@@ -2,6 +2,7 @@ import { ShieldOff } from "lucide-react";
 import { createServiceRoleClient } from "@/lib/supabase/server";
 import { vereisClubToegang } from "@/lib/adminAuth";
 import { SaldoOverzicht } from "@/components/admin/SaldoOverzicht";
+import { UitnodigingscodeKaart } from "@/components/admin/UitnodigingscodeKaart";
 import type { Doel, DoelMetTeams, Team } from "@/lib/types";
 
 export default async function AdminDashboardPage({ params }: { params: Promise<{ slug: string }> }) {
@@ -33,5 +34,10 @@ export default async function AdminDashboardPage({ params }: { params: Promise<{
     team_ids: (doelTeamKoppelingen ?? []).filter((k) => k.doel_id === doel.id).map((k) => k.team_id),
   }));
 
-  return <SaldoOverzicht club={club} initialTeams={(teams as Team[]) ?? []} initialDoelen={doelenMetTeams} />;
+  return (
+    <>
+      <SaldoOverzicht club={club} initialTeams={(teams as Team[]) ?? []} initialDoelen={doelenMetTeams} />
+      <UitnodigingscodeKaart code={club.uitnodigingscode} />
+    </>
+  );
 }

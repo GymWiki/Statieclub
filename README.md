@@ -1024,6 +1024,30 @@ account meerdere clubs, dan toont `/admin` een lijstje om te wisselen.
 Club aanmaken vraagt bewust niet meteen om een spaardoel — dat voeg je
 daarna toe op `/admin/[slug]/doelen`.
 
+### Lege staat "Mijn clubs": bestaande club selecteren (migratie 0019)
+
+Had een gebruiker nog geen enkele club, dan toonde `/admin` voorheen
+uitsluitend het "nieuwe club aanmaken"-formulier. Er ontbrak een tweede,
+even legitieme situatie: iemand die al meehelpt bij een bestaande club
+(bijv. een tweede penningmeester) en zich daarbij wil aansluiten. Die
+actie kan niet zomaar een lijst met bestaande clubs zijn om uit te
+kiezen — clubs zijn publiek leesbaar (donateurs zoeken erop), dus een
+vrije "kies een club"-actie zou iedereen zichzelf toegang kunnen geven
+tot het financiële dashboard van een willekeurige club.
+
+In plaats daarvan krijgt elke club een korte, unieke
+`clubs.uitnodigingscode` (gegenereerd bij aanmaak, of achteraf
+opgevuld voor bestaande clubs). Een zittende beheerder ziet die code op
+zijn eigen dashboard (`UitnodigingscodeKaart.tsx`) en deelt hem buiten
+de app om (WhatsApp, e-mail) met de nieuwe mede-beheerder — hetzelfde
+patroon als een team-invite-link bij Slack/Vercel. Die vult de code in
+bij "Bestaande club selecteren" (`JoinClubForm.tsx`,
+`POST /api/clubs/join`), wat de `security definer`-RPC
+`voeg_beheerder_toe_via_code` aanroept: dezelfde aanpak als
+`maak_club_met_beheerder` hierboven, nu voor een bestaande club i.p.v.
+een nieuwe (`club_admins` heeft immers geen insert-policy voor gewone
+gebruikers).
+
 ### Campagnebeheer: teams + WhatsApp-uitnodiging
 
 `/admin/[slug]/campagne-beheer` (`components/admin/TeamsBeheer.tsx`)

@@ -32,6 +32,8 @@ export interface Club {
   stripe_account_id: string | null;
   /** True zodra Stripe (via het account.updated-webhook) bevestigt dat de club charges_enabled + payouts_enabled + details_submitted heeft. */
   onboarding_complete: boolean;
+  /** Korte, unieke code waarmee een nieuwe gebruiker zich als extra beheerder kan aansluiten (migratie 0019). */
+  uitnodigingscode: string;
   created_at: string;
   updated_at: string;
 }
