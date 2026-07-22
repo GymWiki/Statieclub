@@ -782,12 +782,17 @@ een UI-conventie:
 - **Lijst/kaart-toggle** (`Prikbord.tsx`): de lijst
   (`PrikbordLijst.tsx`) toont per kaart alleen afstand, postcode-cijfers
   en het geschatte aantal — nooit een straatnaam. De kaart
-  (`PrikbordKaart.tsx`) is een zelfgebouwde **mock-kaart** (geen
-  `react-leaflet`/externe tile-server-dependency nodig voor deze
-  illustratie): transparante, gekleurde zone-cirkels op basis van de
-  vervaagde coördinaat, geprojecteerd op een 2D-vlak t.o.v. de
-  speler-positie (`lib/geo.ts#naarMeterOffset`) — bewust géén exacte
-  pin-markers.
+  (`PrikbordKaart.tsx` → `LeafletKaart.tsx`, Punt 5) is sinds migratie
+  0018 een échte kaart: **Leaflet + OpenStreetMap-tegels**, gekozen
+  omdat het gratis is, geen API-key nodig heeft en er al een kant-en-
+  klare, privacy-veilige databron lag (`fuzzy_locatie`) — geen aparte
+  geocoding- of kaart-provider-integratie nodig. Toont per verzoek een
+  transparante zone-`Circle` (225m straal, zelfs iets ruimer dan de
+  onderliggende 150-300m fuzz) rond de vervaagde coördinaat — bewust
+  géén exacte pin-marker. `react-leaflet`'s `MapContainer` raakt
+  `window` aan bij import, dus `PrikbordKaart.tsx` laadt
+  `LeafletKaart.tsx` via `next/dynamic(..., { ssr: false })` om een
+  server-render-crash te voorkomen.
 - **Speler-geolocatie**: `navigator.geolocation.getCurrentPosition`,
   non-blocking en optioneel. Zonder toestemming werkt het prikbord
   gewoon door — de lijst toont dan "Afstand onbekend" i.p.v. een
@@ -838,10 +843,10 @@ handmatige conceptfactuur.
   ontstaat pas server-side in `/api/stripe/webhook`, ná bevestigde
   betaling — nooit vooraf en nooit client-side.
 - **Speler-prikbord**: `type: 'glasbak'`-ritten krijgen een opvallende
-  paars/gouden "bounty"-styling in zowel `PrikbordLijst.tsx` (gradient-
-  kaart, 🍾-label, "💰 €X Direct voor de clubkas") als `PrikbordKaart.tsx`
-  (pulserende paarse pin met gouden gloed i.p.v. de normale groene
-  cirkel). Na het claimen toont `OphaalClaimSheet.tsx` een "Glas
+  paarse "bounty"-styling in zowel `PrikbordLijst.tsx` (gradient-kaart,
+  🍾-label, "💰 €X Direct voor de clubkas") als `LeafletKaart.tsx` (een
+  paarse zone-`Circle` i.p.v. de normale groene). Na het claimen toont
+  `OphaalClaimSheet.tsx` een "Glas
   weggegooid in de wijk-glasbak"-knop in plaats van "Bonnetje
   uploaden" — die roept `POST /api/ophaalverzoeken/[id]/voltooi-glas`
   aan, wat gewoon een normale `bonnetjes`-rij aanmaakt (`bron:

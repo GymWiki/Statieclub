@@ -7,7 +7,7 @@
  * (fuzzy) coördinaat op — genoeg om een kaartweergave met een globale
  * zone te tekenen, zonder ooit de werkelijke straat/woning prijs te
  * geven. Puur wiskunde, geen Supabase-import — dus ook veilig te
- * gebruiken in client components (bijv. voor de mock-kaart-projectie).
+ * gebruiken in client components (bijv. `LeafletKaart.tsx`).
  */
 
 const AARDE_RADIUS_METER = 6_371_000;
@@ -68,21 +68,6 @@ export function vervaagCoordinaat(punt: Coordinaat, seed: string): Coordinaat {
   return {
     lat: punt.lat + (dLat * 180) / Math.PI,
     lng: punt.lng + (dLng * 180) / Math.PI,
-  };
-}
-
-/**
- * Projecteert een coördinaat op een 2D-vlak t.o.v. een middelpunt, in
- * meters (platte-aarde-benadering — ruim voldoende nauwkeurig over de
- * paar honderd meter die het mock-kaartje beslaat). x = oost, y =
- * noord.
- */
-export function naarMeterOffset(middelpunt: Coordinaat, punt: Coordinaat): { x: number; y: number } {
-  const dLat = graadNaarRadiaal(punt.lat - middelpunt.lat);
-  const dLng = graadNaarRadiaal(punt.lng - middelpunt.lng);
-  return {
-    x: dLng * AARDE_RADIUS_METER * Math.cos(graadNaarRadiaal(middelpunt.lat)),
-    y: dLat * AARDE_RADIUS_METER,
   };
 }
 
