@@ -1,11 +1,20 @@
 import Link from "next/link";
 import { Mail } from "lucide-react";
+import { LANDING_PAGE_LIJST } from "@/lib/landingPages";
 
 const PRODUCT_LINKS = [
   { href: "#hoe-het-werkt", label: "Hoe werkt het?" },
   { href: "/donateren", label: "Glas-naar-Kas Service" },
   { href: "#prijzen", label: "Prijzen & Tarieven (5% fee)" },
 ];
+
+// Interne links naar de sport-/use-case-landingspagina's — gegenereerd
+// uit lib/landingPages.ts zodat er nooit een label/slug uit de pas
+// loopt met de daadwerkelijke pagina's.
+const CLUB_LINKS = LANDING_PAGE_LIJST.map((pagina) => ({
+  href: `/${pagina.slug}`,
+  label: pagina.categorie,
+}));
 
 const JURIDISCH_LINKS = [
   { href: "#", label: "Algemene Voorwaarden" },
@@ -39,7 +48,7 @@ export function Footer() {
   return (
     <footer className="bg-slate-900">
       <div className="mx-auto max-w-6xl px-5 py-16 lg:px-8">
-        <div className="grid grid-cols-1 gap-10 sm:grid-cols-2 lg:grid-cols-4">
+        <div className="grid grid-cols-1 gap-10 sm:grid-cols-2 lg:grid-cols-5">
           {/* Kolom 1 — Over Statieclub */}
           <div>
             <Link href="/" className="flex items-center gap-2">
@@ -68,7 +77,21 @@ export function Footer() {
             </ul>
           </div>
 
-          {/* Kolom 3 — Juridisch & Veiligheid */}
+          {/* Kolom 3 — Voor jouw club */}
+          <div>
+            <h3 className="text-sm font-semibold text-white">Voor jouw club</h3>
+            <ul className="mt-4 space-y-2.5">
+              {CLUB_LINKS.map((link) => (
+                <li key={link.href}>
+                  <Link href={link.href} className="text-sm text-slate-400 transition-colors hover:text-white">
+                    {link.label}
+                  </Link>
+                </li>
+              ))}
+            </ul>
+          </div>
+
+          {/* Kolom 4 — Juridisch & Veiligheid */}
           <div>
             <h3 className="text-sm font-semibold text-white">Juridisch & Veiligheid</h3>
             <ul className="mt-4 space-y-2.5">
@@ -85,7 +108,7 @@ export function Footer() {
             </ul>
           </div>
 
-          {/* Kolom 4 — Bedrijfsgegevens & Contact */}
+          {/* Kolom 5 — Bedrijfsgegevens & Contact */}
           <div>
             <h3 className="text-sm font-semibold text-white">Bedrijfsgegevens & Contact</h3>
             <dl className="mt-4 space-y-1.5 text-xs text-slate-400">
