@@ -2,8 +2,6 @@ import { ShieldOff } from "lucide-react";
 import { createServiceRoleClient } from "@/lib/supabase/server";
 import { vereisClubToegang } from "@/lib/adminAuth";
 import { SaldoOverzicht } from "@/components/admin/SaldoOverzicht";
-import { CampagneAfronden } from "@/components/admin/CampagneAfronden";
-import { PlatformFactuur } from "@/components/admin/PlatformFactuur";
 import type { Doel, DoelMetTeams, Team } from "@/lib/types";
 
 export default async function AdminDashboardPage({ params }: { params: Promise<{ slug: string }> }) {
@@ -35,44 +33,5 @@ export default async function AdminDashboardPage({ params }: { params: Promise<{
     team_ids: (doelTeamKoppelingen ?? []).filter((k) => k.doel_id === doel.id).map((k) => k.team_id),
   }));
 
-  const { data: facturen } = await service
-    .from("facturen")
-    .select("*")
-    .eq("club_id", club.id)
-    .order("periode_eind", { ascending: false });
-
-  const laatsteFactuur = facturen?.[0];
-  const periodeStart = laatsteFactuur?.periode_eind ?? club.created_at;
-
-  // 'glas_naar_kas'-donaties tellen hier bewust NIET meer mee (sinds
-  // migratie 0015): die lopen via Stripe Checkout, waar de 5%-fee al
-  // automatisch is ingehouden op het moment van betalen. Alleen
-  // fysiek statiegeld (bron 'scan') loopt nog via deze handmatige
-  // conceptfactuur, dus dit "openstaand"-bedrag moet exact
-  // overeenkomen met wat straks daadwerkelijk gefactureerd wordt.
-  const { data: openBonnetjes } = await service
-    .from("bonnetjes")
-    .select("bedrag_euro, teams!inner(club_id)")
-    .eq("status", "goedgekeurd")
-    .eq("bron", "scan")
-    .eq("teams.club_id", club.id)
-    .gt("geverifieerd_op", periodeStart);
-
-  const huidigePeriodeTotaal = ((openBonnetjes ?? []) as any[]).reduce(
-    (som, b) => som + Number(b.bedrag_euro),
-    0
-  );
-
-  return (
-    <>
-      <SaldoOverzicht club={club} initialTeams={(teams as Team[]) ?? []} initialDoelen={doelenMetTeams} />
-      <CampagneAfronden clubNaam={club.naam} teams={(teams as Team[]) ?? []} />
-      <PlatformFactuur
-        clubSlug={club.slug}
-        initialFacturen={facturen ?? []}
-        initialPeriodeStart={periodeStart}
-        initialTotaal={huidigePeriodeTotaal}
-      />
-    </>
-  );
+  return <SaldoOverzicht club={club} initialTeams={(teams as Team[]) ?? []} initialDoelen={doelenMetTeams} />;
 }

@@ -187,6 +187,8 @@ export interface Bonnetje {
   flag_reden: string | null;
   geverifieerd_door: string | null;
   geverifieerd_op: string | null;
+  /** Gezet zodra dit bonnetje is meegenomen in een betaalverzoek (migratie 0018) — zie lib/actieAfronden.ts. */
+  betaalverzoek_id: string | null;
   created_at: string;
 }
 

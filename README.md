@@ -241,19 +241,26 @@ drie acties:
   (op basis van de foto) in; dat gecorrigeerde bedrag wordt direct
   goedgekeurd en de punten herberekend.
 
-### Het 5%-verdienmodel: platform-facturatie
+### Het 5%-verdienmodel: uitsluitend via Stripe (migratie 0018)
 
-`components/admin/PlatformFactuur.tsx` + `POST /api/clubs/[slug]/facturen`
-berekenen een conceptfactuur van 5% (`PLATFORM_FEE_PERCENTAGE` in `lib/utils.ts`) over
-uitsluitend de bonnetjes met status `goedgekeurd` sinds het einde van de
-vorige factuurperiode (of sinds het ontstaan van de club, bij de eerste
-factuur) — zo wordt nooit twee keer over hetzelfde bedrag gefactureerd.
-Afgekeurde scans en bonnetjes die nog `in_afwachting_controle` staan
-tellen dus nooit mee. De UI communiceert expliciet dat deze facturatie
-uitsluitend is gebaseerd op de in-app goedgekeurde scans, **onafhankelijk**
-van het moment waarop teamleden het bedrag fysiek naar de clubkas
-overmaken (dat blijft de aparte, sociale "Campagne afronden"-stap
-richting de teams via WhatsApp/Tikkie).
+Alle betalingen én kosten lopen inmiddels uitsluitend via Stripe — de
+vroegere handmatige conceptfactuur (`PlatformFactuur.tsx` +
+`POST /api/clubs/[slug]/facturen`) en de sociale "Campagne afronden"-
+herinnering richting teams (WhatsApp/Tikkie, `CampagneAfronden.tsx`)
+zijn beide **verwijderd**. Fysiek gescand statiegeld (`bron = 'scan'`)
+loopt voortaan exact dezelfde weg als zelfgeregistreerd statiegeld in de
+Virtuele Portemonnee (hieronder): een goedgekeurd scan-bonnetje wacht
+(via de nieuwe `bonnetjes.betaalverzoek_id`-kolom) tot de eerstvolgende
+actie van de club sluit, waarna `lib/actieAfronden.ts#rondActieAf` het
+samen met eventuele portemonnee-inleveringen per speler optelt tot één
+`betaalverzoeken`-rij (drempel `CAMPAGNE_AFREKENING_MINIMUM_EURO`). De
+speler betaalt zijn/haar aandeel via dezelfde Stripe Checkout-sessie
+(iDEAL) als een portemonnee-afrekening — `application_fee_amount` houdt
+de 5%-fee (`PLATFORM_FEE_PERCENTAGE` in `lib/utils.ts`) automatisch in,
+dezelfde destination-charge die hieronder bij Stripe Connect staat
+beschreven. De `facturen`-tabel blijft bestaan voor historische
+conceptfacturen van vóór deze migratie, maar er worden geen nieuwe rijen
+meer aangemaakt.
 
 Een donateur blijft **1 record**: het ophaalformulier doet een `upsert`
 op e-mailadres, dus bij een volgende actie (ook bij een andere club)
@@ -272,14 +279,13 @@ verving in migratie `0015_stripe_connect.sql` een eerdere, volledig
 uitgewerkte Mollie SEPA-incasso-architectuur — zie de migratie zelf
 voor de volledige onderbouwing van die knip.
 
-> **Bewuste beperking.** Fysiek opgehaald statiegeld (`bron = 'scan'`)
-> gaat nooit door het platform — daar valt dus nooit automatisch een
-> fee op in te houden. Voor die stroom blijft de **handmatige**
-> conceptfactuur (hierboven, `PlatformFactuur.tsx` /
-> `POST /api/clubs/[slug]/facturen`) de manier om de 5%-fee te innen —
-> die rekent gewoon over alle goedgekeurde bonnetjes, ongeacht bron, en
-> is door deze migratie niet aangeraakt. Alleen de vroegere *automatische*
-> SEPA-incasso op die stroom is vervallen.
+> **Bijgewerkt in migratie 0018.** Fysiek opgehaald statiegeld
+> (`bron = 'scan'`) gaat zelf nooit door het platform als betaling — dat
+> bleef zo. Maar in plaats van dat gat op te vangen met een handmatige
+> conceptfactuur, wordt de speler die het bonnetje scande nu zelf de
+> betalende partij richting de club: zie "Het 5%-verdienmodel"
+> hierboven. Zo loopt ook deze stroom, indirect maar volledig, via een
+> échte Stripe-betaling met automatisch ingehouden fee.
 
 - **Onboarding: Stripe Express-account.**
   `POST /api/stripe/create-connect-account` maakt (indien nog niet
@@ -852,12 +858,11 @@ handmatige conceptfactuur.
   /api/ophaalverzoeken/[id]/claim` filteren/weigeren `glasbak`-ritten
   voor een team zonder `glas_service_actief` — client-side (UX) én
   server-side (afgedwongen), net als bij de doel-teamscoping.
-- **Facturatie**: `bron = 'glas_naar_kas'` telt niet meer mee in de
-  handmatige conceptfactuur-berekening (`/api/clubs/[slug]/facturen`)
-  — de 5%-fee op deze donaties is al automatisch door Stripe
-  ingehouden op het moment van betalen, dus die zou anders dubbel
-  worden gerekend. Alleen `bron = 'scan'` (fysiek statiegeld, dat nooit
-  door het platform stroomt) loopt nog via die handmatige factuur.
+- **Facturatie**: `bron = 'glas_naar_kas'` genereert nooit een
+  betaalverzoek — de 5%-fee op deze donaties is al automatisch door
+  Stripe ingehouden op het moment van betalen, dus die zou anders dubbel
+  worden gerekend. Alleen `bron = 'scan'` loopt via `rondActieAf` (zie
+  "Het 5%-verdienmodel" hierboven, migratie 0018).
 - **Admin** (`components/admin/TeamsBeheer.tsx` +
   `components/ui/Toggle.tsx`): een herbruikbare toggle-switch, één per
   team, met `PATCH /api/teams/[id]`.
@@ -1154,14 +1159,16 @@ Supabase-dashboard van je project:
   gewoon zichtbaar op het prikbord — alleen zonder afstand of
   kaart-cirkel, enkel de postcode-cijfers. Een echte geocoding-stap
   (adres → coördinaat) is de voor de hand liggende vervolgstap.
-- "Campagne afronden" (WhatsApp/Tikkie-herinnering richting teams) is
-  een eenmalige, niet-periodieke actie gebaseerd op het cumulatieve
-  `teams.totaal_opgehaald_euro`; er is geen aparte status die bijhoudt
-  of een team het bedrag al fysiek heeft afgedragen aan de clubkas —
-  dat blijft sociale controle, zoals gevraagd.
-- De 5%-platformfactuur is een intern gegenereerde conceptfactuur
-  (status `concept`/`verzonden`/`betaald` in de `facturen`-tabel); er
-  is geen koppeling met een echte facturatie-/betaalprovider.
+- Sinds migratie 0018 lopen álle betalingen (ook fysiek statiegeld)
+  via Stripe-betaalverzoeken — de vroegere sociale "Campagne
+  afronden"-herinnering en de handmatige conceptfactuur zijn vervallen
+  (zie "Het 5%-verdienmodel" hierboven). De `facturen`-tabel blijft
+  staan met uitsluitend historische rijen van vóór die migratie.
+- Een bonnetje zonder `speler_id` (theoretisch mogelijk, kolom is
+  nullable) kan nooit in een betaalverzoek terechtkomen — er is dan
+  immers niemand om te belasten. Dit is een bewust geaccepteerde
+  edge case: in de praktijk heeft vrijwel elk teamlid via
+  `lib/playerIdentity.ts` altijd al een `speler_id`.
 - De Mollie-integratie (`/admin/[slug]/facturatie`, hierboven) is —
   anders dan de gesimuleerde Glas-naar-Kas-betaalstap — een échte
   koppeling: zonder een geldige `MOLLIE_API_KEY` (en publiek bereikbare
