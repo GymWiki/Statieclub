@@ -3,6 +3,8 @@ import { ShieldOff, Users } from "lucide-react";
 import { vereisClubToegang } from "@/lib/adminAuth";
 import { AdminTabs } from "@/components/admin/AdminTabs";
 
+// robots: noindex geldt al voor de hele /admin-boom via app/admin/layout.tsx.
+
 export default async function AdminClubLayout({
   children,
   params,

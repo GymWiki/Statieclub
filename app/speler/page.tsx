@@ -1,7 +1,16 @@
+import type { Metadata } from "next";
 import Link from "next/link";
 import { MapPin, Trophy, ArrowRight } from "lucide-react";
 import { createClient } from "@/lib/supabase/server";
 import type { Club } from "@/lib/types";
+
+// Generieke doorgeefluik-pagina naar /club/[slug] (login-gateway),
+// geen unieke content om op te ranken — noindex, wel follow zodat de
+// clublinks erop nog gecrawld worden.
+export const metadata: Metadata = {
+  title: "Inloggen als speler",
+  robots: { index: false, follow: true },
+};
 
 /**
  * Generieke "inloggen als speler"-ingang vanaf de marketing-site.

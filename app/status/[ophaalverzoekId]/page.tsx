@@ -1,9 +1,15 @@
+import type { Metadata } from "next";
 import { notFound } from "next/navigation";
 import { Trophy, Package } from "lucide-react";
 import { createServiceRoleClient } from "@/lib/supabase/server";
 import { ChatWindow } from "@/components/chat/ChatWindow";
 import { StatusBadge } from "@/components/ui/Badge";
 import { chatIsGesloten } from "@/lib/utils";
+
+// Persoonsgebonden magic-link-pagina (ophaalverzoek-id als geheim in de URL) — noindex.
+export const metadata: Metadata = {
+  robots: { index: false, follow: false },
+};
 
 interface StatusRij {
   id: string;
