@@ -29,13 +29,13 @@ const ROLLEN: RolContent[] = [
     icon: Heart,
     koptekst: (
       <>
-        Jouw lege flessen.
+        Statiegeld inzamelen
         <br />
-        <span className="text-emerald-600">Hun nieuwe doeltjes.</span>
+        <span className="text-emerald-600">voor je club — zonder gedoe.</span>
       </>
     ),
     subtekst:
-      "Steun lokaal talent zonder moeite. Geef je statiegeld aan een club in de buurt, en jeugdteams komen het juichend bij je ophalen.",
+      "Buurtbewoners geven hun flessen, jullie jeugdteam haalt ze op — zo zamel je statiegeld in voor je club. Gratis en binnen een paar klikken geregeld.",
     ctaLabel: "Zoek een club bij jou in de buurt",
     href: "/donateren",
     accentText: "text-emerald-700",
@@ -254,7 +254,7 @@ function PostcodeZoeker({ accentBg }: { accentBg: string }) {
           </>
         ) : (
           <>
-            Zoek lokale clubs
+            Begin met inzamelen
             <ArrowRight className="h-4 w-4" />
           </>
         )}
