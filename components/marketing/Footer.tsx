@@ -61,6 +61,17 @@ export function Footer() {
               Het slimste en groenste alternatief voor de clubkas.
             </p>
             <p className="mt-6 text-xs text-slate-500">© 2026 Statieclub. Gemaakt in Zwolle.</p>
+            <div className="mt-6">
+              <p className="text-xs font-semibold text-slate-500">Andere projecten:</p>
+              <Link
+                href="https://www.kostenplan.nl"
+                target="_blank"
+                rel="noopener noreferrer"
+                className="mt-1.5 inline-block text-sm text-slate-400 transition-colors hover:text-white hover:underline hover:underline-offset-2"
+              >
+                Kostenplan
+              </Link>
+            </div>
           </div>
 
           {/* Kolom 2 — Product & Links */}
